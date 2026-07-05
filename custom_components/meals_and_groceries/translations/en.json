@@ -1,0 +1,15 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add shopping list",
+        "description": "Name of the new shopping list (e.g. \"Edeka\").",
+        "data": {
+          "name": "Name"
+        }
+      }
+    },
+    "error": {},
+    "abort": {}
+  }
+}
