@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
+from .entities import refresh_list_sensors, shopping_list_device_info
 from .models import ShoppingCategory, TodoItemRecord
 from .store import CategoryStore, TodoItemStore
 
@@ -52,6 +53,8 @@ class MealsAndGroceriesTodoListEntity(TodoListEntity):
         | TodoListEntityFeature.DELETE_TODO_ITEM
         | TodoListEntityFeature.SET_DESCRIPTION_ON_ITEM
     )
+    _attr_has_entity_name = True
+    _attr_name = None
 
     def __init__(
         self,
@@ -63,7 +66,9 @@ class MealsAndGroceriesTodoListEntity(TodoListEntity):
         self._category_store = category_store
         self._todo_store = todo_store
         self._attr_unique_id = config_entry.entry_id
-        self._attr_name = config_entry.title
+        self._attr_device_info = shopping_list_device_info(
+            config_entry.entry_id, config_entry.title
+        )
 
     @property
     def todo_items(self) -> list[TodoItem]:
@@ -94,6 +99,7 @@ class MealsAndGroceriesTodoListEntity(TodoListEntity):
         self._todo_store.add(summary=summary, description=item.description)
         await self._todo_store.async_save()
         self.async_write_ha_state()
+        refresh_list_sensors(self.hass, self._config_entry.entry_id)
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
         status = (
@@ -104,9 +110,11 @@ class MealsAndGroceriesTodoListEntity(TodoListEntity):
         )
         await self._todo_store.async_save()
         self.async_write_ha_state()
+        refresh_list_sensors(self.hass, self._config_entry.entry_id)
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         for uid in uids:
             self._todo_store.delete(uid)
         await self._todo_store.async_save()
         self.async_write_ha_state()
+        refresh_list_sensors(self.hass, self._config_entry.entry_id)

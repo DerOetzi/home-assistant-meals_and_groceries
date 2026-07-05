@@ -5,3 +5,22 @@ scan_barcode:
       example: "4008400122333"
       selector:
         text:
+
+set_day_meal:
+  fields:
+    weekday_index:
+      required: true
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 6
+          mode: box
+    dish_id:
+      required: false
+      selector:
+        text:
+    free_text:
+      required: false
+      selector:
+        text:

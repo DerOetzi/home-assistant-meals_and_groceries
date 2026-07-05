@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import dataclasses
 import uuid
+from datetime import datetime
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, STORAGE_VERSION
-from .models import Product, ShoppingCategory, TodoItemRecord
+from .models import Dish, MealPlanDay, Product, ShoppingCategory, TodoItemRecord
 
 
 class ProductStore:
@@ -50,6 +52,71 @@ class ProductStore:
         )
         self.products.append(product)
         return product
+
+
+class DishStore:
+    """Persists dishes/restaurants that can be referenced from the meal plan."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.dishes")
+        self.dishes: list[Dish] = []
+
+    async def async_load(self) -> None:
+        data = await self._store.async_load()
+        if data:
+            self.dishes = [Dish(**d) for d in data.get("dishes", [])]
+
+    async def async_save(self) -> None:
+        await self._store.async_save(
+            {"dishes": [dataclasses.asdict(d) for d in self.dishes]}
+        )
+
+    def get(self, dish_id: str) -> Dish | None:
+        for dish in self.dishes:
+            if dish.id == dish_id:
+                return dish
+        return None
+
+    def add(self, name: str, *, kind: str, notes: str | None = None) -> Dish:
+        dish = Dish(id=uuid.uuid4().hex, name=name, kind=kind, notes=notes)
+        self.dishes.append(dish)
+        return dish
+
+
+class MealPlanStore:
+    """Persists the 7 weekday slots of the weekly meal plan."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.mealplan")
+        self.days: list[MealPlanDay] = [MealPlanDay(weekday_index=i) for i in range(7)]
+
+    async def async_load(self) -> None:
+        data = await self._store.async_load()
+        if data and data.get("days"):
+            by_index = {d["weekday_index"]: MealPlanDay(**d) for d in data["days"]}
+            self.days = [by_index.get(i, MealPlanDay(weekday_index=i)) for i in range(7)]
+
+    async def async_save(self) -> None:
+        await self._store.async_save(
+            {"days": [dataclasses.asdict(d) for d in self.days]}
+        )
+
+    def get_day(self, weekday_index: int) -> MealPlanDay:
+        return self.days[weekday_index]
+
+    def set_day(
+        self,
+        weekday_index: int,
+        *,
+        dish_id: str | None = None,
+        free_text: str | None = None,
+    ) -> None:
+        self.days[weekday_index] = MealPlanDay(
+            weekday_index=weekday_index, dish_id=dish_id, free_text=free_text
+        )
+
+    def reset_day(self, weekday_index: int) -> None:
+        self.days[weekday_index] = MealPlanDay(weekday_index=weekday_index)
 
 
 class CategoryStore:
@@ -105,15 +172,24 @@ class TodoItemStore:
     def __init__(self, hass: HomeAssistant, config_entry_id: str) -> None:
         self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.todo_{config_entry_id}")
         self.items: list[TodoItemRecord] = []
+        self.last_changed: datetime | None = None
 
     async def async_load(self) -> None:
         data = await self._store.async_load()
         if data:
             self.items = [TodoItemRecord(**i) for i in data.get("items", [])]
+            last_changed = data.get("last_changed")
+            if last_changed:
+                self.last_changed = dt_util.parse_datetime(last_changed)
 
     async def async_save(self) -> None:
         await self._store.async_save(
-            {"items": [dataclasses.asdict(i) for i in self.items]}
+            {
+                "items": [dataclasses.asdict(i) for i in self.items],
+                "last_changed": (
+                    self.last_changed.isoformat() if self.last_changed else None
+                ),
+            }
         )
 
     async def async_remove(self) -> None:
@@ -149,6 +225,7 @@ class TodoItemStore:
             description=description,
         )
         self.items.append(record)
+        self.last_changed = dt_util.utcnow()
         return record
 
     def update(
@@ -166,6 +243,11 @@ class TodoItemStore:
             record.status = status
         if description is not None:
             record.description = description
+        self.last_changed = dt_util.utcnow()
 
     def delete(self, uid: str) -> None:
         self.items = [i for i in self.items if i.uid != uid]
+        self.last_changed = dt_util.utcnow()
+
+    def open_item_count(self) -> int:
+        return sum(1 for item in self.items if item.status == "needs_action")

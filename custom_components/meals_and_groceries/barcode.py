@@ -5,6 +5,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN, EVENT_BARCODE_ADDED, EVENT_BARCODE_UNKNOWN, GLOBAL_DATA_KEY
+from .entities import refresh_list_sensors
 
 SCAN_BARCODE_SCHEMA = vol.Schema({vol.Required("barcode"): cv.string})
 
@@ -35,6 +36,7 @@ async def async_handle_scan_barcode(hass: HomeAssistant, call: ServiceCall) -> N
         )
         await todo_store.async_save()
         entry_data["entity"].async_write_ha_state()
+        refresh_list_sensors(hass, product.store_config_entry_id)
 
     hass.bus.async_fire(
         EVENT_BARCODE_ADDED,

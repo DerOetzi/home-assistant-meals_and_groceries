@@ -22,6 +22,42 @@
           "description": "Der gescannte Barcode-Wert."
         }
       }
+    },
+    "set_day_meal": {
+      "name": "Essensplan-Tag setzen",
+      "description": "Setzt oder löscht das Gericht/den Freitext für einen Wochentag im Essensplan.",
+      "fields": {
+        "weekday_index": {
+          "name": "Wochentag",
+          "description": "0 = Montag ... 6 = Sonntag."
+        },
+        "dish_id": {
+          "name": "Gericht",
+          "description": "ID eines Gerichts/Restaurants. Leer lassen für Freitext oder zum Löschen."
+        },
+        "free_text": {
+          "name": "Freitext",
+          "description": "Freier Text, falls kein Gericht ausgewählt wird."
+        }
+      }
     }
+  },
+  "entity": {
+    "sensor": {
+      "today": { "name": "Essensplan heute" },
+      "tomorrow": { "name": "Essensplan morgen" },
+      "week_plan": { "name": "Wochenessensplan" },
+      "item_count": { "name": "Offene Artikel" },
+      "last_changed": { "name": "Letzte Änderung" }
+    }
+  },
+  "weekdays": {
+    "monday": "Montag",
+    "tuesday": "Dienstag",
+    "wednesday": "Mittwoch",
+    "thursday": "Donnerstag",
+    "friday": "Freitag",
+    "saturday": "Samstag",
+    "sunday": "Sonntag"
   }
 }

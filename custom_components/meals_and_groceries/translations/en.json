@@ -22,6 +22,42 @@
           "description": "The scanned barcode value."
         }
       }
+    },
+    "set_day_meal": {
+      "name": "Set meal plan day",
+      "description": "Sets or clears the dish/free text for one weekday in the meal plan.",
+      "fields": {
+        "weekday_index": {
+          "name": "Weekday",
+          "description": "0 = Monday ... 6 = Sunday."
+        },
+        "dish_id": {
+          "name": "Dish",
+          "description": "ID of a dish/restaurant. Leave empty for free text or to clear the day."
+        },
+        "free_text": {
+          "name": "Free text",
+          "description": "Free-form text, used when no dish is selected."
+        }
+      }
     }
+  },
+  "entity": {
+    "sensor": {
+      "today": { "name": "Meal plan today" },
+      "tomorrow": { "name": "Meal plan tomorrow" },
+      "week_plan": { "name": "Weekly meal plan" },
+      "item_count": { "name": "Open items" },
+      "last_changed": { "name": "Last changed" }
+    }
+  },
+  "weekdays": {
+    "monday": "Monday",
+    "tuesday": "Tuesday",
+    "wednesday": "Wednesday",
+    "thursday": "Thursday",
+    "friday": "Friday",
+    "saturday": "Saturday",
+    "sunday": "Sunday"
   }
 }
