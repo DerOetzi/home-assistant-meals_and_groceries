@@ -11,5 +11,17 @@
     },
     "error": {},
     "abort": {}
+  },
+  "services": {
+    "scan_barcode": {
+      "name": "Barcode scannen",
+      "description": "Sucht einen gescannten Barcode und fügt das zugehörige Produkt der passenden Einkaufsliste hinzu.",
+      "fields": {
+        "barcode": {
+          "name": "Barcode",
+          "description": "Der gescannte Barcode-Wert."
+        }
+      }
+    }
   }
 }

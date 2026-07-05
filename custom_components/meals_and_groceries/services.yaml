@@ -1,0 +1,7 @@
+scan_barcode:
+  fields:
+    barcode:
+      required: true
+      example: "4008400122333"
+      selector:
+        text:

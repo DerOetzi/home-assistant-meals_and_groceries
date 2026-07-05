@@ -1,6 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Product:
+    """A product master record, shared across all shopping lists."""
+
+    id: str
+    name: str
+    store_config_entry_id: str
+    category_id: str | None = None
+    barcodes: list[str] = field(default_factory=list)
 
 
 @dataclass

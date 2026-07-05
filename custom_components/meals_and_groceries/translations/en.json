@@ -11,5 +11,17 @@
     },
     "error": {},
     "abort": {}
+  },
+  "services": {
+    "scan_barcode": {
+      "name": "Scan barcode",
+      "description": "Looks up a scanned barcode and adds the matching product to the appropriate shopping list.",
+      "fields": {
+        "barcode": {
+          "name": "Barcode",
+          "description": "The scanned barcode value."
+        }
+      }
+    }
   }
 }

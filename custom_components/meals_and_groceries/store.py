@@ -7,7 +7,49 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, STORAGE_VERSION
-from .models import ShoppingCategory, TodoItemRecord
+from .models import Product, ShoppingCategory, TodoItemRecord
+
+
+class ProductStore:
+    """Persists the product master data, shared across all shopping lists."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.products")
+        self.products: list[Product] = []
+
+    async def async_load(self) -> None:
+        data = await self._store.async_load()
+        if data:
+            self.products = [Product(**p) for p in data.get("products", [])]
+
+    async def async_save(self) -> None:
+        await self._store.async_save(
+            {"products": [dataclasses.asdict(p) for p in self.products]}
+        )
+
+    def find_by_barcode(self, barcode: str) -> Product | None:
+        for product in self.products:
+            if barcode in product.barcodes:
+                return product
+        return None
+
+    def add(
+        self,
+        name: str,
+        *,
+        store_config_entry_id: str,
+        category_id: str | None = None,
+        barcodes: list[str] | None = None,
+    ) -> Product:
+        product = Product(
+            id=uuid.uuid4().hex,
+            name=name,
+            store_config_entry_id=store_config_entry_id,
+            category_id=category_id,
+            barcodes=list(barcodes) if barcodes else [],
+        )
+        self.products.append(product)
+        return product
 
 
 class CategoryStore:

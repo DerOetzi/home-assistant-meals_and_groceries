@@ -36,13 +36,11 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     data = hass.data[DOMAIN][config_entry.entry_id]
-    async_add_entities(
-        [
-            MealsAndGroceriesTodoListEntity(
-                config_entry, data["categories"], data["todo_items"]
-            )
-        ]
+    entity = MealsAndGroceriesTodoListEntity(
+        config_entry, data["categories"], data["todo_items"]
     )
+    data["entity"] = entity
+    async_add_entities([entity])
 
 
 class MealsAndGroceriesTodoListEntity(TodoListEntity):
