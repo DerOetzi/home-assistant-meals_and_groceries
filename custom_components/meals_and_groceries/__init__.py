@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.storage import Store
 
+from . import panel, websocket_api
 from .barcode import SCAN_BARCODE_SCHEMA, async_handle_scan_barcode
 from .const import (
     DOMAIN,
@@ -24,6 +25,8 @@ from .mealplan import (
     async_handle_set_day_meal,
 )
 from .store import CategoryStore, DishStore, MealPlanStore, ProductStore, TodoItemStore
+
+_FRONTEND_REGISTERED_KEY = "_frontend_registered"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -59,11 +62,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     hass.data[DOMAIN][GLOBAL_DATA_KEY] = {
+        "entry": entry,
         "products": product_store,
         "dishes": dish_store,
         "mealplan": mealplan_store,
         "midnight_unsub": midnight_unsub,
     }
+
+    if not hass.data[DOMAIN].get(_FRONTEND_REGISTERED_KEY):
+        websocket_api.async_setup(hass)
+        await panel.async_setup(hass)
+        hass.data[DOMAIN][_FRONTEND_REGISTERED_KEY] = True
 
     for subentry_id, subentry in entry.subentries.items():
         if subentry.subentry_type != SUBENTRY_TYPE_SHOPPING_LIST:
@@ -108,6 +117,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    panel.async_remove(hass)
+    hass.data[DOMAIN].pop(_FRONTEND_REGISTERED_KEY, None)
     await ProductStore(hass).async_remove()
     await DishStore(hass).async_remove()
     await MealPlanStore(hass).async_remove()

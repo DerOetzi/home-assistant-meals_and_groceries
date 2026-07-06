@@ -51,18 +51,35 @@ def _notify_sensors(hass: HomeAssistant) -> None:
         entity.async_write_ha_state()
 
 
-async def async_handle_set_day_meal(hass: HomeAssistant, call: ServiceCall) -> None:
-    """Set (or clear) the dish/free text for one weekday slot."""
+async def async_set_day_meal(
+    hass: HomeAssistant,
+    weekday_index: int,
+    *,
+    dish_id: str | None = None,
+    free_text: str | None = None,
+) -> None:
+    """Set (or clear) the dish/free text for one weekday slot.
+
+    Shared by the scan_barcode service handler and the panel's
+    mealplan/set_day websocket command so both stay in sync with one
+    implementation.
+    """
     global_data = hass.data[DOMAIN][GLOBAL_DATA_KEY]
     mealplan_store = global_data["mealplan"]
 
-    mealplan_store.set_day(
+    mealplan_store.set_day(weekday_index, dish_id=dish_id, free_text=free_text)
+    await mealplan_store.async_save()
+    _notify_sensors(hass)
+
+
+async def async_handle_set_day_meal(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Service-call wrapper around async_set_day_meal."""
+    await async_set_day_meal(
+        hass,
         call.data["weekday_index"],
         dish_id=call.data.get("dish_id"),
         free_text=call.data.get("free_text"),
     )
-    await mealplan_store.async_save()
-    _notify_sensors(hass)
 
 
 async def async_handle_midnight_reset(hass: HomeAssistant, now: datetime) -> None:
@@ -80,6 +97,7 @@ __all__ = [
     "SET_DAY_MEAL_SCHEMA",
     "async_get_weekday_labels",
     "day_label",
+    "async_set_day_meal",
     "async_handle_set_day_meal",
     "async_handle_midnight_reset",
 ]

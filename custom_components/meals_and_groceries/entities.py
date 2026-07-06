@@ -12,7 +12,7 @@ def shopping_list_device_info(subentry_id: str, name: str) -> DeviceInfo:
         identifiers={(DOMAIN, subentry_id)},
         name=name,
         manufacturer="Meals & Groceries",
-        model="Einkaufsliste",
+        model="Shopping list",
     )
 
 

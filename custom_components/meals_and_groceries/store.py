@@ -35,6 +35,12 @@ class ProductStore:
                 return product
         return None
 
+    def get(self, product_id: str) -> Product | None:
+        for product in self.products:
+            if product.id == product_id:
+                return product
+        return None
+
     async def async_remove(self) -> None:
         await self._store.async_remove()
 
@@ -55,6 +61,24 @@ class ProductStore:
         )
         self.products.append(product)
         return product
+
+    def update(
+        self,
+        product_id: str,
+        *,
+        name: str,
+        category_id: str | None,
+        barcodes: list[str],
+    ) -> None:
+        product = self.get(product_id)
+        if product is None:
+            raise KeyError(product_id)
+        product.name = name
+        product.category_id = category_id
+        product.barcodes = list(barcodes)
+
+    def delete(self, product_id: str) -> None:
+        self.products = [p for p in self.products if p.id != product_id]
 
 
 class DishStore:
@@ -87,6 +111,19 @@ class DishStore:
         dish = Dish(id=uuid.uuid4().hex, name=name, kind=kind, notes=notes)
         self.dishes.append(dish)
         return dish
+
+    def update(
+        self, dish_id: str, *, name: str, kind: str, notes: str | None
+    ) -> None:
+        dish = self.get(dish_id)
+        if dish is None:
+            raise KeyError(dish_id)
+        dish.name = name
+        dish.kind = kind
+        dish.notes = notes
+
+    def delete(self, dish_id: str) -> None:
+        self.dishes = [d for d in self.dishes if d.id != dish_id]
 
 
 class MealPlanStore:
