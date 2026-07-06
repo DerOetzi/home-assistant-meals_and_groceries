@@ -1,5 +1,5 @@
 import { t } from "./translations.js";
-import { callWS } from "./ha-ws.js";
+import "./views/products-view.js";
 
 const TABS = ["categories", "products", "dishes", "mealplan"];
 
@@ -7,68 +7,31 @@ class MealsAndGroceriesPanel extends HTMLElement {
   constructor() {
     super();
     this._activeTab = TABS[0];
-    this._stores = null;
-    this._error = null;
+    this._hass = null;
+    this._built = false;
   }
 
   connectedCallback() {
     if (!this.shadowRoot) {
       this.attachShadow({ mode: "open" });
     }
-    this._render();
-    this._loadStores();
+    if (!this._built) {
+      this._build();
+      this._built = true;
+    }
+    this._updateHass();
   }
 
   set hass(hass) {
-    const hadHass = Boolean(this._hass);
     this._hass = hass;
-    this._render();
-    if (!hadHass) {
-      this._loadStores();
-    }
+    this._updateHass();
   }
 
   get hass() {
     return this._hass;
   }
 
-  async _loadStores() {
-    if (!this._hass) {
-      return;
-    }
-    try {
-      const result = await callWS(this._hass, "meals_and_groceries/stores/list");
-      this._stores = result.stores;
-      this._error = null;
-    } catch (err) {
-      this._stores = [];
-      this._error = err?.message || String(err);
-    }
-    this._render();
-  }
-
-  _selectTab(tab) {
-    this._activeTab = tab;
-    this._render();
-  }
-
-  _render() {
-    if (!this.shadowRoot) {
-      return;
-    }
-    const hass = this._hass;
-
-    let storesLine;
-    if (this._error) {
-      storesLine = `${t(hass, "error_prefix")}: ${this._error}`;
-    } else if (this._stores === null) {
-      storesLine = t(hass, "loading");
-    } else if (this._stores.length === 0) {
-      storesLine = t(hass, "no_stores");
-    } else {
-      storesLine = this._stores.map((store) => store.title).join(", ");
-    }
-
+  _build() {
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -83,7 +46,7 @@ class MealsAndGroceriesPanel extends HTMLElement {
           border-bottom: 1px solid var(--divider-color, #ccc);
           background: var(--card-background-color, transparent);
         }
-        button {
+        button.tab {
           flex: 1;
           padding: 16px;
           border: none;
@@ -93,31 +56,66 @@ class MealsAndGroceriesPanel extends HTMLElement {
           color: var(--secondary-text-color, inherit);
           border-bottom: 2px solid transparent;
         }
-        button.active {
+        button.tab.active {
           color: var(--primary-color, #03a9f4);
           border-bottom-color: var(--primary-color, #03a9f4);
         }
         main {
           padding: 16px;
         }
+        main > [data-view] {
+          display: none;
+        }
       </style>
       <nav>
-        ${TABS.map(
-          (tab) =>
-            `<button data-tab="${tab}" class="${
-              tab === this._activeTab ? "active" : ""
-            }">${t(hass, `tab_${tab}`)}</button>`
-        ).join("")}
+        ${TABS.map((tab) => `<button class="tab" data-tab="${tab}"></button>`).join("")}
       </nav>
       <main>
-        <p>${t(hass, "stores_label")}: ${storesLine}</p>
-        <p><em>${t(hass, "view_placeholder")}</em></p>
+        <div data-view="categories"></div>
+        <mag-products-view data-view="products"></mag-products-view>
+        <div data-view="dishes"></div>
+        <div data-view="mealplan"></div>
       </main>
     `;
 
-    this.shadowRoot.querySelectorAll("button[data-tab]").forEach((button) => {
-      button.addEventListener("click", () => this._selectTab(button.dataset.tab));
+    this.shadowRoot.querySelectorAll("button.tab").forEach((button) => {
+      button.addEventListener("click", () => {
+        this._activeTab = button.dataset.tab;
+        this._updateActiveTab();
+      });
     });
+    this._updateActiveTab();
+  }
+
+  _updateActiveTab() {
+    this.shadowRoot.querySelectorAll("button.tab").forEach((button) => {
+      button.classList.toggle("active", button.dataset.tab === this._activeTab);
+    });
+    this.shadowRoot.querySelectorAll("main > [data-view]").forEach((el) => {
+      el.style.display = el.dataset.view === this._activeTab ? "block" : "none";
+    });
+  }
+
+  _updateHass() {
+    if (!this._hass || !this.shadowRoot) {
+      return;
+    }
+    this.shadowRoot.querySelectorAll("button.tab").forEach((button) => {
+      button.textContent = t(this._hass, `tab_${button.dataset.tab}`);
+    });
+    const placeholder = t(this._hass, "view_placeholder");
+    this.shadowRoot.querySelectorAll(
+      'main > [data-view="categories"], main > [data-view="dishes"], main > [data-view="mealplan"]'
+    ).forEach((el) => {
+      if (!el.textContent) {
+        el.innerHTML = `<p><em>${placeholder}</em></p>`;
+      }
+    });
+
+    const productsView = this.shadowRoot.querySelector("mag-products-view");
+    if (productsView) {
+      productsView.hass = this._hass;
+    }
   }
 }
 
