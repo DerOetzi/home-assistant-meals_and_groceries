@@ -28,6 +28,13 @@ export const TRANSLATIONS = {
     no_products: "No products yet.",
     name_required: "Name is required.",
     store_required: "Please choose a shopping list.",
+    categories_store_label: "Shopping list",
+    category_name_placeholder: "New category name",
+    add_category: "Add category",
+    no_categories: "No categories yet — add one below.",
+    confirm_delete_category:
+      'Delete this category? Products keep their reference but show as "No category".',
+    drag_hint: "Drag rows to reorder — order sets the walking route in the store.",
   },
   de: {
     tab_categories: "Kategorien",
@@ -58,6 +65,13 @@ export const TRANSLATIONS = {
     no_products: "Noch keine Produkte.",
     name_required: "Name ist erforderlich.",
     store_required: "Bitte eine Einkaufsliste auswählen.",
+    categories_store_label: "Einkaufsliste",
+    category_name_placeholder: "Name der neuen Kategorie",
+    add_category: "Kategorie hinzufügen",
+    no_categories: "Noch keine Kategorien — füge unten eine hinzu.",
+    confirm_delete_category:
+      'Diese Kategorie löschen? Produkte behalten ihren Verweis, zeigen dann aber "Keine Kategorie" an.',
+    drag_hint: "Zeilen per Drag&Drop sortieren — Reihenfolge = Laufweg im Laden.",
   },
 };
 

@@ -77,11 +77,24 @@ class MealsAndGroceriesProductsView extends HTMLElement {
         .row-actions { display: flex; gap: 8px; justify-content: flex-end; }
         #error { color: var(--error-color, #db4437); }
         #form-container:empty { display: none; }
+        .overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: flex-start;
+          justify-content: center;
+          padding: 5vh 16px;
+          overflow-y: auto;
+          z-index: 10;
+        }
         .form {
-          margin-top: 16px;
+          width: 100%;
+          max-width: 480px;
           padding: 16px;
-          border: 1px solid var(--divider-color, #ccc);
           border-radius: 8px;
+          background: var(--card-background-color, #fff);
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
         }
         .form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
         .form-row label { font-size: 12px; color: var(--secondary-text-color, inherit); }
@@ -255,7 +268,23 @@ class MealsAndGroceriesProductsView extends HTMLElement {
     `;
   }
 
-  _openForm(productId) {
+  async _refreshCategoriesForStore(storeId) {
+    if (!storeId) {
+      return;
+    }
+    try {
+      const { categories } = await callWS(
+        this._hass,
+        "meals_and_groceries/categories/list",
+        { subentry_id: storeId }
+      );
+      this._categoriesByStore[storeId] = categories;
+    } catch (err) {
+      this._error = err?.message || String(err);
+    }
+  }
+
+  async _openForm(productId) {
     this._editingProductId = productId;
     const product = productId
       ? this._products.find((p) => p.id === productId)
@@ -265,6 +294,10 @@ class MealsAndGroceriesProductsView extends HTMLElement {
       product?.store_subentry_id || this._stores[0]?.subentry_id || "";
     this._formCategoryId = product?.category_id || "";
     this._formNameValue = product?.name || "";
+    // Categories may have changed since the initial bulk load (e.g. added
+    // in the Categories tab), so always fetch a fresh list for this store
+    // right before showing the form.
+    await this._refreshCategoriesForStore(this._formStoreId);
     this._renderForm();
   }
 
@@ -280,6 +313,7 @@ class MealsAndGroceriesProductsView extends HTMLElement {
     const categories = this._categoriesByStore[this._formStoreId] || [];
 
     container.innerHTML = `
+      <div class="overlay" id="overlay">
       <div class="form">
         <h3>${t(hass, isEdit ? "edit_product" : "add_product")}</h3>
         <div class="form-row">
@@ -328,16 +362,23 @@ class MealsAndGroceriesProductsView extends HTMLElement {
           <button id="f-save">${t(hass, "save")}</button>
         </div>
       </div>
+      </div>
     `;
 
     this._renderChips();
 
+    container.querySelector("#overlay").addEventListener("click", (event) => {
+      if (event.target.id === "overlay") {
+        this._closeForm();
+      }
+    });
     container.querySelector("#f-name").addEventListener("input", (event) => {
       this._formNameValue = event.target.value;
     });
-    container.querySelector("#f-store").addEventListener("change", (event) => {
+    container.querySelector("#f-store").addEventListener("change", async (event) => {
       this._formStoreId = event.target.value;
       this._formCategoryId = "";
+      await this._refreshCategoriesForStore(this._formStoreId);
       this._renderForm();
     });
     container.querySelector("#f-category").addEventListener("change", (event) => {

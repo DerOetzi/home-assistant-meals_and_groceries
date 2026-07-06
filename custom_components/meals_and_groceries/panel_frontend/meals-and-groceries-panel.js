@@ -1,7 +1,8 @@
 import { t } from "./translations.js";
 import "./views/products-view.js";
+import "./views/categories-view.js";
 
-const TABS = ["categories", "products", "dishes", "mealplan"];
+const TABS = ["mealplan", "products", "dishes", "categories"];
 
 class MealsAndGroceriesPanel extends HTMLElement {
   constructor() {
@@ -71,10 +72,10 @@ class MealsAndGroceriesPanel extends HTMLElement {
         ${TABS.map((tab) => `<button class="tab" data-tab="${tab}"></button>`).join("")}
       </nav>
       <main>
-        <div data-view="categories"></div>
+        <div data-view="mealplan"></div>
         <mag-products-view data-view="products"></mag-products-view>
         <div data-view="dishes"></div>
-        <div data-view="mealplan"></div>
+        <mag-categories-view data-view="categories"></mag-categories-view>
       </main>
     `;
 
@@ -105,7 +106,7 @@ class MealsAndGroceriesPanel extends HTMLElement {
     });
     const placeholder = t(this._hass, "view_placeholder");
     this.shadowRoot.querySelectorAll(
-      'main > [data-view="categories"], main > [data-view="dishes"], main > [data-view="mealplan"]'
+      'main > [data-view="dishes"], main > [data-view="mealplan"]'
     ).forEach((el) => {
       if (!el.textContent) {
         el.innerHTML = `<p><em>${placeholder}</em></p>`;
@@ -115,6 +116,10 @@ class MealsAndGroceriesPanel extends HTMLElement {
     const productsView = this.shadowRoot.querySelector("mag-products-view");
     if (productsView) {
       productsView.hass = this._hass;
+    }
+    const categoriesView = this.shadowRoot.querySelector("mag-categories-view");
+    if (categoriesView) {
+      categoriesView.hass = this._hass;
     }
   }
 }
