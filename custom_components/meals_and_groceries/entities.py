@@ -6,16 +6,16 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from .const import DOMAIN
 
 
-def shopping_list_device_info(entry_id: str, name: str) -> DeviceInfo:
+def shopping_list_device_info(subentry_id: str, name: str) -> DeviceInfo:
     """Shared device each shopping list's todo entity and sensors belong to."""
     return DeviceInfo(
-        identifiers={(DOMAIN, entry_id)},
+        identifiers={(DOMAIN, subentry_id)},
         name=name,
         manufacturer="Meals & Groceries",
         model="Einkaufsliste",
     )
 
 
-def refresh_list_sensors(hass: HomeAssistant, entry_id: str) -> None:
-    for sensor in hass.data[DOMAIN][entry_id].get("list_sensors", []):
+def refresh_list_sensors(hass: HomeAssistant, subentry_id: str) -> None:
+    for sensor in hass.data[DOMAIN][subentry_id].get("list_sensors", []):
         sensor.async_write_ha_state()

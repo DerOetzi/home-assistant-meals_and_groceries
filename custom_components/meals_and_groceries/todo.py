@@ -13,7 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import DOMAIN, SUBENTRY_TYPE_SHOPPING_LIST
 from .entities import refresh_list_sensors, shopping_list_device_info
 from .models import ShoppingCategory, TodoItemRecord
 from .store import CategoryStore, TodoItemStore
@@ -36,12 +36,15 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    data = hass.data[DOMAIN][config_entry.entry_id]
-    entity = MealsAndGroceriesTodoListEntity(
-        config_entry, data["categories"], data["todo_items"]
-    )
-    data["entity"] = entity
-    async_add_entities([entity])
+    for subentry_id, subentry in config_entry.subentries.items():
+        if subentry.subentry_type != SUBENTRY_TYPE_SHOPPING_LIST:
+            continue
+        data = hass.data[DOMAIN][subentry_id]
+        entity = MealsAndGroceriesTodoListEntity(
+            subentry_id, subentry.title, data["categories"], data["todo_items"]
+        )
+        data["entity"] = entity
+        async_add_entities([entity], config_subentry_id=subentry_id)
 
 
 class MealsAndGroceriesTodoListEntity(TodoListEntity):
@@ -58,17 +61,16 @@ class MealsAndGroceriesTodoListEntity(TodoListEntity):
 
     def __init__(
         self,
-        config_entry: ConfigEntry,
+        subentry_id: str,
+        name: str,
         category_store: CategoryStore,
         todo_store: TodoItemStore,
     ) -> None:
-        self._config_entry = config_entry
+        self._subentry_id = subentry_id
         self._category_store = category_store
         self._todo_store = todo_store
-        self._attr_unique_id = config_entry.entry_id
-        self._attr_device_info = shopping_list_device_info(
-            config_entry.entry_id, config_entry.title
-        )
+        self._attr_unique_id = subentry_id
+        self._attr_device_info = shopping_list_device_info(subentry_id, name)
 
     @property
     def todo_items(self) -> list[TodoItem]:
@@ -99,7 +101,7 @@ class MealsAndGroceriesTodoListEntity(TodoListEntity):
         self._todo_store.add(summary=summary, description=item.description)
         await self._todo_store.async_save()
         self.async_write_ha_state()
-        refresh_list_sensors(self.hass, self._config_entry.entry_id)
+        refresh_list_sensors(self.hass, self._subentry_id)
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
         status = (
@@ -110,11 +112,11 @@ class MealsAndGroceriesTodoListEntity(TodoListEntity):
         )
         await self._todo_store.async_save()
         self.async_write_ha_state()
-        refresh_list_sensors(self.hass, self._config_entry.entry_id)
+        refresh_list_sensors(self.hass, self._subentry_id)
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         for uid in uids:
             self._todo_store.delete(uid)
         await self._todo_store.async_save()
         self.async_write_ha_state()
-        refresh_list_sensors(self.hass, self._config_entry.entry_id)
+        refresh_list_sensors(self.hass, self._subentry_id)

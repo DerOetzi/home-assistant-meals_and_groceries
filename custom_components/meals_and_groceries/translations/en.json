@@ -2,15 +2,29 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add shopping list",
-        "description": "Name of the new shopping list (e.g. \"Edeka\").",
-        "data": {
-          "name": "Name"
-        }
+        "title": "Set up Meals & Groceries",
+        "description": "Sets up the central management (meal plan, products, barcode service). Add shopping lists afterwards via \"+ Add sub-entry\" on this integration."
       }
     },
     "error": {},
     "abort": {}
+  },
+  "config_subentries": {
+    "shopping_list": {
+      "initiate_flow": {
+        "user": "Add shopping list"
+      },
+      "entry_type": "Shopping list",
+      "step": {
+        "user": {
+          "title": "Add shopping list",
+          "description": "Name of the new shopping list (e.g. \"Edeka\").",
+          "data": {
+            "name": "Name"
+          }
+        }
+      }
+    }
   },
   "services": {
     "scan_barcode": {

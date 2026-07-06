@@ -2,15 +2,29 @@
   "config": {
     "step": {
       "user": {
-        "title": "Einkaufsliste hinzufügen",
-        "description": "Name der neuen Einkaufsliste (z.B. \"Edeka\").",
-        "data": {
-          "name": "Name"
-        }
+        "title": "Meals & Groceries einrichten",
+        "description": "Richtet die zentrale Verwaltung ein (Wochenplan, Produkte, Barcode-Service). Einkaufslisten fügst du danach über \"+ Untereintrag hinzufügen\" auf dieser Integration hinzu."
       }
     },
     "error": {},
     "abort": {}
+  },
+  "config_subentries": {
+    "shopping_list": {
+      "initiate_flow": {
+        "user": "Einkaufsliste hinzufügen"
+      },
+      "entry_type": "Einkaufsliste",
+      "step": {
+        "user": {
+          "title": "Einkaufsliste hinzufügen",
+          "description": "Name der neuen Einkaufsliste (z.B. \"Edeka\").",
+          "data": {
+            "name": "Name"
+          }
+        }
+      }
+    }
   },
   "services": {
     "scan_barcode": {

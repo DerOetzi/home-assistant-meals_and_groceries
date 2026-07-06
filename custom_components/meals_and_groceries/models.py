@@ -9,7 +9,7 @@ class Product:
 
     id: str
     name: str
-    store_config_entry_id: str
+    store_subentry_id: str
     category_id: str | None = None
     barcodes: list[str] = field(default_factory=list)
 

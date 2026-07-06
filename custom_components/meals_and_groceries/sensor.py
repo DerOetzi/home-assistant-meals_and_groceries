@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_KIND, DOMAIN, ENTRY_KIND_HUB, GLOBAL_DATA_KEY, WEEKDAY_IDS
+from .const import DOMAIN, GLOBAL_DATA_KEY, SUBENTRY_TYPE_SHOPPING_LIST, WEEKDAY_IDS
 from .entities import shopping_list_device_info
 from .mealplan import async_get_weekday_labels, day_label
 from .store import DishStore, MealPlanStore, TodoItemStore
@@ -18,44 +18,32 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    if config_entry.data.get(CONF_KIND) == ENTRY_KIND_HUB:
-        await _async_setup_hub_sensors(hass, async_add_entities)
-    else:
-        _async_setup_list_sensors(hass, config_entry, async_add_entities)
-
-
-async def _async_setup_hub_sensors(
-    hass: HomeAssistant, async_add_entities: AddEntitiesCallback
-) -> None:
     global_data = hass.data[DOMAIN][GLOBAL_DATA_KEY]
 
     mealplan_store: MealPlanStore = global_data["mealplan"]
     dish_store: DishStore = global_data["dishes"]
     weekday_labels = await async_get_weekday_labels(hass)
 
-    entities = [
+    hub_entities = [
         MealsAndGroceriesTodaySensor(mealplan_store, dish_store),
         MealsAndGroceriesTomorrowSensor(mealplan_store, dish_store),
         MealsAndGroceriesWeekSensor(mealplan_store, dish_store, weekday_labels),
     ]
-    global_data["mealplan_sensors"] = entities
-    async_add_entities(entities)
+    global_data["mealplan_sensors"] = hub_entities
+    async_add_entities(hub_entities)
 
+    for subentry_id, subentry in config_entry.subentries.items():
+        if subentry.subentry_type != SUBENTRY_TYPE_SHOPPING_LIST:
+            continue
+        data = hass.data[DOMAIN][subentry_id]
+        todo_store: TodoItemStore = data["todo_items"]
 
-def _async_setup_list_sensors(
-    hass: HomeAssistant,
-    config_entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    data = hass.data[DOMAIN][config_entry.entry_id]
-    todo_store: TodoItemStore = data["todo_items"]
-
-    entities = [
-        MealsAndGroceriesItemCountSensor(config_entry, todo_store),
-        MealsAndGroceriesLastChangedSensor(config_entry, todo_store),
-    ]
-    data["list_sensors"] = entities
-    async_add_entities(entities)
+        list_entities = [
+            MealsAndGroceriesItemCountSensor(subentry_id, subentry.title, todo_store),
+            MealsAndGroceriesLastChangedSensor(subentry_id, subentry.title, todo_store),
+        ]
+        data["list_sensors"] = list_entities
+        async_add_entities(list_entities, config_subentry_id=subentry_id)
 
 
 class MealsAndGroceriesItemCountSensor(SensorEntity):
@@ -65,12 +53,10 @@ class MealsAndGroceriesItemCountSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "item_count"
 
-    def __init__(self, config_entry: ConfigEntry, todo_store: TodoItemStore) -> None:
+    def __init__(self, subentry_id: str, name: str, todo_store: TodoItemStore) -> None:
         self._todo_store = todo_store
-        self._attr_unique_id = f"{config_entry.entry_id}_item_count"
-        self._attr_device_info = shopping_list_device_info(
-            config_entry.entry_id, config_entry.title
-        )
+        self._attr_unique_id = f"{subentry_id}_item_count"
+        self._attr_device_info = shopping_list_device_info(subentry_id, name)
 
     @property
     def native_value(self) -> int:
@@ -85,12 +71,10 @@ class MealsAndGroceriesLastChangedSensor(SensorEntity):
     _attr_translation_key = "last_changed"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
-    def __init__(self, config_entry: ConfigEntry, todo_store: TodoItemStore) -> None:
+    def __init__(self, subentry_id: str, name: str, todo_store: TodoItemStore) -> None:
         self._todo_store = todo_store
-        self._attr_unique_id = f"{config_entry.entry_id}_last_changed"
-        self._attr_device_info = shopping_list_device_info(
-            config_entry.entry_id, config_entry.title
-        )
+        self._attr_unique_id = f"{subentry_id}_last_changed"
+        self._attr_device_info = shopping_list_device_info(subentry_id, name)
 
     @property
     def native_value(self) -> datetime | None:

@@ -35,18 +35,21 @@ class ProductStore:
                 return product
         return None
 
+    async def async_remove(self) -> None:
+        await self._store.async_remove()
+
     def add(
         self,
         name: str,
         *,
-        store_config_entry_id: str,
+        store_subentry_id: str,
         category_id: str | None = None,
         barcodes: list[str] | None = None,
     ) -> Product:
         product = Product(
             id=uuid.uuid4().hex,
             name=name,
-            store_config_entry_id=store_config_entry_id,
+            store_subentry_id=store_subentry_id,
             category_id=category_id,
             barcodes=list(barcodes) if barcodes else [],
         )
@@ -70,6 +73,9 @@ class DishStore:
         await self._store.async_save(
             {"dishes": [dataclasses.asdict(d) for d in self.dishes]}
         )
+
+    async def async_remove(self) -> None:
+        await self._store.async_remove()
 
     def get(self, dish_id: str) -> Dish | None:
         for dish in self.dishes:
@@ -101,6 +107,9 @@ class MealPlanStore:
             {"days": [dataclasses.asdict(d) for d in self.days]}
         )
 
+    async def async_remove(self) -> None:
+        await self._store.async_remove()
+
     def get_day(self, weekday_index: int) -> MealPlanDay:
         return self.days[weekday_index]
 
@@ -122,8 +131,8 @@ class MealPlanStore:
 class CategoryStore:
     """Persists the ordered list of categories for one shopping list."""
 
-    def __init__(self, hass: HomeAssistant, config_entry_id: str) -> None:
-        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.categories_{config_entry_id}")
+    def __init__(self, hass: HomeAssistant, subentry_id: str) -> None:
+        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.categories_{subentry_id}")
         self.categories: list[ShoppingCategory] = []
 
     async def async_load(self) -> None:
@@ -169,8 +178,8 @@ class CategoryStore:
 class TodoItemStore:
     """Persists the items of one shopping list."""
 
-    def __init__(self, hass: HomeAssistant, config_entry_id: str) -> None:
-        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.todo_{config_entry_id}")
+    def __init__(self, hass: HomeAssistant, subentry_id: str) -> None:
+        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.todo_{subentry_id}")
         self.items: list[TodoItemRecord] = []
         self.last_changed: datetime | None = None
 

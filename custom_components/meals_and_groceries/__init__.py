@@ -1,21 +1,22 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
-from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.storage import Store
 
 from .barcode import SCAN_BARCODE_SCHEMA, async_handle_scan_barcode
 from .const import (
-    CONF_KIND,
     DOMAIN,
-    ENTRY_KIND_HUB,
-    ENTRY_KIND_SHOPPING_LIST,
     GLOBAL_DATA_KEY,
-    PLATFORMS_BY_KIND,
+    PLATFORMS,
     SERVICE_SCAN_BARCODE,
     SERVICE_SET_DAY_MEAL,
+    STORAGE_VERSION,
+    SUBENTRY_TYPE_SHOPPING_LIST,
 )
 from .mealplan import (
     SET_DAY_MEAL_SCHEMA,
@@ -25,74 +26,9 @@ from .mealplan import (
 from .store import CategoryStore, DishStore, MealPlanStore, ProductStore, TodoItemStore
 
 
-def _entry_kind(entry: ConfigEntry) -> str:
-    return entry.data.get(CONF_KIND, ENTRY_KIND_SHOPPING_LIST)
-
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
-    kind = _entry_kind(entry)
 
-    if kind == ENTRY_KIND_HUB:
-        await _async_setup_hub_entry(hass, entry)
-    else:
-        category_store = CategoryStore(hass, entry.entry_id)
-        await category_store.async_load()
-
-        todo_store = TodoItemStore(hass, entry.entry_id)
-        await todo_store.async_load()
-
-        hass.data[DOMAIN][entry.entry_id] = {
-            "categories": category_store,
-            "todo_items": todo_store,
-        }
-
-        _async_ensure_hub_exists(hass)
-
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS_BY_KIND[kind])
-    return True
-
-
-def _async_ensure_hub_exists(hass: HomeAssistant) -> None:
-    """Auto-create the singleton management hub on the first shopping list.
-
-    The hub is its own independent config entry once created — it is not
-    tied to the shopping list that triggered its creation and survives that
-    list being renamed or removed later.
-    """
-    hub_exists = any(
-        entry.data.get(CONF_KIND) == ENTRY_KIND_HUB
-        for entry in hass.config_entries.async_entries(DOMAIN)
-    )
-    if not hub_exists:
-        hass.async_create_task(
-            hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_IMPORT})
-        )
-
-
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    kind = _entry_kind(entry)
-    unload_ok = await hass.config_entries.async_unload_platforms(
-        entry, PLATFORMS_BY_KIND[kind]
-    )
-    if unload_ok:
-        if kind == ENTRY_KIND_HUB:
-            hass.data[DOMAIN][GLOBAL_DATA_KEY]["midnight_unsub"]()
-            hass.services.async_remove(DOMAIN, SERVICE_SCAN_BARCODE)
-            hass.services.async_remove(DOMAIN, SERVICE_SET_DAY_MEAL)
-            hass.data[DOMAIN].pop(GLOBAL_DATA_KEY, None)
-        else:
-            hass.data[DOMAIN].pop(entry.entry_id)
-    return unload_ok
-
-
-async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    if _entry_kind(entry) == ENTRY_KIND_SHOPPING_LIST:
-        await CategoryStore(hass, entry.entry_id).async_remove()
-        await TodoItemStore(hass, entry.entry_id).async_remove()
-
-
-async def _async_setup_hub_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     product_store = ProductStore(hass)
     await product_store.async_load()
 
@@ -128,3 +64,72 @@ async def _async_setup_hub_entry(hass: HomeAssistant, entry: ConfigEntry) -> Non
         "mealplan": mealplan_store,
         "midnight_unsub": midnight_unsub,
     }
+
+    for subentry_id, subentry in entry.subentries.items():
+        if subentry.subentry_type != SUBENTRY_TYPE_SHOPPING_LIST:
+            continue
+        category_store = CategoryStore(hass, subentry_id)
+        await category_store.async_load()
+
+        todo_store = TodoItemStore(hass, subentry_id)
+        await todo_store.async_load()
+
+        hass.data[DOMAIN][subentry_id] = {
+            "categories": category_store,
+            "todo_items": todo_store,
+        }
+
+    await _async_cleanup_orphaned_stores(hass, entry)
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
+
+    return True
+
+
+async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Adding/removing a shopping-list subentry does not reload the entry on
+    its own — this listener does, so the todo/sensor platforms pick up the
+    change (verified empirically; HA does not appear to auto-reload)."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        hass.data[DOMAIN][GLOBAL_DATA_KEY]["midnight_unsub"]()
+        hass.services.async_remove(DOMAIN, SERVICE_SCAN_BARCODE)
+        hass.services.async_remove(DOMAIN, SERVICE_SET_DAY_MEAL)
+        hass.data[DOMAIN].pop(GLOBAL_DATA_KEY, None)
+        for subentry_id in list(entry.subentries):
+            hass.data[DOMAIN].pop(subentry_id, None)
+    return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    await ProductStore(hass).async_remove()
+    await DishStore(hass).async_remove()
+    await MealPlanStore(hass).async_remove()
+    for subentry_id in entry.subentries:
+        await CategoryStore(hass, subentry_id).async_remove()
+        await TodoItemStore(hass, subentry_id).async_remove()
+
+
+async def _async_cleanup_orphaned_stores(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove storage files for shopping-list subentries that no longer exist."""
+    current_ids = {
+        subentry_id
+        for subentry_id, subentry in entry.subentries.items()
+        if subentry.subentry_type == SUBENTRY_TYPE_SHOPPING_LIST
+    }
+    storage_dir = hass.config.path(".storage")
+    try:
+        filenames = await hass.async_add_executor_job(os.listdir, storage_dir)
+    except OSError:
+        return
+
+    for filename in filenames:
+        for prefix in (f"{DOMAIN}.categories_", f"{DOMAIN}.todo_"):
+            if filename.startswith(prefix) and filename[len(prefix) :] not in current_ids:
+                await Store(hass, STORAGE_VERSION, filename).async_remove()
