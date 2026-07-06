@@ -13,7 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, SUBENTRY_TYPE_SHOPPING_LIST
+from .const import DOMAIN, GLOBAL_DATA_KEY, SUBENTRY_TYPE_SHOPPING_LIST
 from .entities import refresh_list_sensors, shopping_list_device_info
 from .models import ShoppingCategory, TodoItemRecord
 from .store import CategoryStore, TodoItemStore
@@ -93,15 +93,40 @@ class MealsAndGroceriesTodoListEntity(TodoListEntity):
         ]
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
-        summary = (item.summary or "").strip()
-        if not summary:
+        raw_summary = (item.summary or "").strip()
+        if not raw_summary:
             return
+
+        product_id, category_id, summary = self._resolve_product(raw_summary)
+
         if self._todo_store.find_needs_action_by_summary(summary) is not None:
             return
-        self._todo_store.add(summary=summary, description=item.description)
+        self._todo_store.add(
+            summary=summary,
+            product_id=product_id,
+            category_id=category_id,
+            description=item.description,
+        )
         await self._todo_store.async_save()
         self.async_write_ha_state()
         refresh_list_sensors(self.hass, self._subentry_id)
+
+    def _resolve_product(
+        self, raw_summary: str
+    ) -> tuple[str | None, str | None, str]:
+        """Match a manually typed item (native todo-list card) against the
+        product catalog by exact name, so its category/sort order is set
+        automatically. Returns (product_id, category_id, clean_summary).
+        """
+        products = self.hass.data[DOMAIN][GLOBAL_DATA_KEY]["products"].products
+        needle = raw_summary.casefold()
+        for product in products:
+            if (
+                product.store_subentry_id == self._subentry_id
+                and product.name.casefold() == needle
+            ):
+                return product.id, product.category_id, product.name
+        return None, None, raw_summary
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
         status = (

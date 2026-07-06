@@ -147,6 +147,8 @@ class MealsAndGroceriesProductsView extends HTMLElement {
         this._openForm(productId);
       } else if (button.dataset.action === "delete") {
         this._deleteProduct(productId);
+      } else if (button.dataset.action === "add-to-list") {
+        this._addToList(productId);
       }
     });
   }
@@ -240,6 +242,10 @@ class MealsAndGroceriesProductsView extends HTMLElement {
             <td>${_escape(category)}</td>
             <td>${barcodeCount}</td>
             <td class="row-actions">
+              <button data-action="add-to-list" data-id="${product.id}">${t(
+          hass,
+          "add_to_list"
+        )}</button>
               <button class="secondary" data-action="edit" data-id="${product.id}">${t(
           hass,
           "edit"
@@ -479,6 +485,24 @@ class MealsAndGroceriesProductsView extends HTMLElement {
       await this._loadProducts();
     } catch (err) {
       window.alert(`${t(hass, "error_prefix")}: ${err?.message || err}`);
+    }
+  }
+
+  async _addToList(productId) {
+    const product = this._products.find((p) => p.id === productId);
+    const store = this._stores.find(
+      (s) => s.subentry_id === product?.store_subentry_id
+    );
+    if (!product || !store?.todo_entity_id) {
+      return;
+    }
+    try {
+      await this._hass.callService("todo", "add_item", {
+        entity_id: store.todo_entity_id,
+        item: product.name,
+      });
+    } catch (err) {
+      window.alert(`${t(this._hass, "error_prefix")}: ${err?.message || err}`);
     }
   }
 

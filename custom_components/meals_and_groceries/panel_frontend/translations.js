@@ -59,6 +59,7 @@ export const TRANSLATIONS = {
     mealplan_group_away: "Eating out",
     clear: "Clear",
     unknown_barcode_toast: "Unknown barcode {barcode} — add the product now.",
+    add_to_list: "Add to list",
   },
   de: {
     tab_categories: "Kategorien",
@@ -120,6 +121,7 @@ export const TRANSLATIONS = {
     mealplan_group_away: "Auswärts",
     clear: "Leeren",
     unknown_barcode_toast: "Unbekannter Barcode {barcode} — jetzt Produkt anlegen.",
+    add_to_list: "Zur Liste",
   },
 };
 

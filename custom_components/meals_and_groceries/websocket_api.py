@@ -5,6 +5,7 @@ import dataclasses
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     DISH_KINDS,
@@ -59,8 +60,15 @@ def _refresh_list_entity(hass: HomeAssistant, subentry_id: str) -> None:
 @callback
 def ws_stores_list(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
     entry = _global_data(hass)["entry"]
+    registry = er.async_get(hass)
     stores = [
-        {"subentry_id": subentry_id, "title": subentry.title}
+        {
+            "subentry_id": subentry_id,
+            "title": subentry.title,
+            "todo_entity_id": registry.async_get_entity_id(
+                "todo", DOMAIN, subentry_id
+            ),
+        }
         for subentry_id, subentry in entry.subentries.items()
         if subentry.subentry_type == SUBENTRY_TYPE_SHOPPING_LIST
     ]
