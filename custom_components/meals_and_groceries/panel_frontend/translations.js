@@ -60,6 +60,8 @@ export const TRANSLATIONS = {
     clear: "Clear",
     unknown_barcode_toast: "Unknown barcode {barcode} — add the product now.",
     add_to_list: "Add to list",
+    editor_product_label: "Product",
+    editor_product_placeholder: "Select a product…",
   },
   de: {
     tab_categories: "Kategorien",
@@ -122,6 +124,8 @@ export const TRANSLATIONS = {
     clear: "Leeren",
     unknown_barcode_toast: "Unbekannter Barcode {barcode} — jetzt Produkt anlegen.",
     add_to_list: "Zur Liste",
+    editor_product_label: "Produkt",
+    editor_product_placeholder: "Produkt auswählen…",
   },
 };
 

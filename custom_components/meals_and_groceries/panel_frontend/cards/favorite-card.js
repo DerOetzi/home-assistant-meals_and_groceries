@@ -1,8 +1,17 @@
 import { t } from "../translations.js";
 import { callWS } from "../ha-ws.js";
 import { subscribeTodoItems } from "./todo-subscribe.js";
+import "./favorite-card-editor.js";
 
 class MealsAndGroceriesFavoriteCard extends HTMLElement {
+  static getConfigElement() {
+    return document.createElement("meals-and-groceries-favorite-card-editor");
+  }
+
+  static getStubConfig() {
+    return { product_id: "" };
+  }
+
   setConfig(config) {
     if (!config.product_id) {
       throw new Error("meals-and-groceries-favorite-card: product_id is required");
@@ -148,24 +157,56 @@ class MealsAndGroceriesFavoriteCard extends HTMLElement {
         ha-card {
           cursor: pointer;
           padding: 12px 16px;
-          transition: background-color 0.15s, color 0.15s;
+          transition: background-color 0.15s ease, color 0.15s ease, filter 0.1s ease;
           background: var(--card-background-color, #fff);
           color: var(--primary-text-color, inherit);
+          box-shadow: var(--ha-card-box-shadow, none);
+          border-radius: var(--ha-card-border-radius, 12px);
         }
+        ha-card:active { filter: brightness(0.95); }
         ha-card.on {
           background: var(--primary-color, #03a9f4);
           color: var(--text-primary-color, #fff);
         }
-        .title { font-weight: 500; }
-        .subtitle { font-size: 12px; opacity: 0.8; }
+        ha-card.on:active { filter: brightness(1.1); }
+        .row { display: flex; align-items: center; gap: 12px; }
+        .icon { flex: none; color: inherit; opacity: 0.85; }
+        .text { flex: 1; min-width: 0; }
+        .title {
+          font-weight: 500;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .subtitle {
+          font-size: 12px;
+          opacity: 0.8;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .check { flex: none; color: inherit; }
       </style>
       <ha-card class="${this._isOn ? "on" : ""}">
-        <div class="title">${_escape(this._product.name)}</div>
-        ${
-          this._categoryName
-            ? `<div class="subtitle">${_escape(this._categoryName)}</div>`
-            : ""
-        }
+        <div class="row">
+          <ha-icon
+            class="icon"
+            icon="${this._isOn ? "mdi:cart-check" : "mdi:cart-outline"}"
+          ></ha-icon>
+          <div class="text">
+            <div class="title">${_escape(this._product.name)}</div>
+            ${
+              this._categoryName
+                ? `<div class="subtitle">${_escape(this._categoryName)}</div>`
+                : ""
+            }
+          </div>
+          ${
+            this._isOn
+              ? `<ha-icon class="check" icon="mdi:check-circle"></ha-icon>`
+              : ""
+          }
+        </div>
       </ha-card>
     `;
     this.shadowRoot
@@ -187,3 +228,10 @@ if (!customElements.get("meals-and-groceries-favorite-card")) {
     MealsAndGroceriesFavoriteCard
   );
 }
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "meals-and-groceries-favorite-card",
+  name: "Meals & Groceries Favorite",
+  description: "Toggle a catalog product on/off a Meals & Groceries shopping list.",
+});
