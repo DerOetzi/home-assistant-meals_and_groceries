@@ -1,6 +1,8 @@
 import { t } from "./translations.js";
 import "./views/products-view.js";
 import "./views/categories-view.js";
+import "./views/dishes-view.js";
+import "./views/mealplan-view.js";
 
 const TABS = ["mealplan", "products", "dishes", "categories"];
 
@@ -10,6 +12,8 @@ class MealsAndGroceriesPanel extends HTMLElement {
     this._activeTab = TABS[0];
     this._hass = null;
     this._built = false;
+    this._barcodeSubscribed = false;
+    this._toastTimeout = null;
   }
 
   connectedCallback() {
@@ -26,6 +30,7 @@ class MealsAndGroceriesPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     this._updateHass();
+    this._subscribeBarcodeUnknown();
   }
 
   get hass() {
@@ -67,16 +72,30 @@ class MealsAndGroceriesPanel extends HTMLElement {
         main > [data-view] {
           display: none;
         }
+        #toast {
+          position: fixed;
+          bottom: 24px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: var(--primary-color, #03a9f4);
+          color: var(--text-primary-color, #fff);
+          padding: 12px 20px;
+          border-radius: 8px;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+          z-index: 20;
+          display: none;
+        }
       </style>
       <nav>
         ${TABS.map((tab) => `<button class="tab" data-tab="${tab}"></button>`).join("")}
       </nav>
       <main>
-        <div data-view="mealplan"></div>
+        <mag-mealplan-view data-view="mealplan"></mag-mealplan-view>
         <mag-products-view data-view="products"></mag-products-view>
-        <div data-view="dishes"></div>
+        <mag-dishes-view data-view="dishes"></mag-dishes-view>
         <mag-categories-view data-view="categories"></mag-categories-view>
       </main>
+      <div id="toast"></div>
     `;
 
     this.shadowRoot.querySelectorAll("button.tab").forEach((button) => {
@@ -104,23 +123,47 @@ class MealsAndGroceriesPanel extends HTMLElement {
     this.shadowRoot.querySelectorAll("button.tab").forEach((button) => {
       button.textContent = t(this._hass, `tab_${button.dataset.tab}`);
     });
-    const placeholder = t(this._hass, "view_placeholder");
-    this.shadowRoot.querySelectorAll(
-      'main > [data-view="dishes"], main > [data-view="mealplan"]'
-    ).forEach((el) => {
-      if (!el.textContent) {
-        el.innerHTML = `<p><em>${placeholder}</em></p>`;
-      }
-    });
 
+    for (const selector of [
+      "mag-products-view",
+      "mag-categories-view",
+      "mag-dishes-view",
+      "mag-mealplan-view",
+    ]) {
+      const view = this.shadowRoot.querySelector(selector);
+      if (view) {
+        view.hass = this._hass;
+      }
+    }
+  }
+
+  _subscribeBarcodeUnknown() {
+    if (this._barcodeSubscribed || !this._hass?.connection) {
+      return;
+    }
+    this._barcodeSubscribed = true;
+    this._hass.connection.subscribeMessage(
+      (message) => this._onUnknownBarcode(message.barcode),
+      { type: "meals_and_groceries/barcode_unknown/subscribe" }
+    );
+  }
+
+  _onUnknownBarcode(barcode) {
+    this._activeTab = "products";
+    this._updateActiveTab();
     const productsView = this.shadowRoot.querySelector("mag-products-view");
-    if (productsView) {
-      productsView.hass = this._hass;
-    }
-    const categoriesView = this.shadowRoot.querySelector("mag-categories-view");
-    if (categoriesView) {
-      categoriesView.hass = this._hass;
-    }
+    productsView?.openWithBarcode(barcode);
+    this._showToast(t(this._hass, "unknown_barcode_toast").replace("{barcode}", barcode));
+  }
+
+  _showToast(message) {
+    const toast = this.shadowRoot.getElementById("toast");
+    toast.textContent = message;
+    toast.style.display = "block";
+    clearTimeout(this._toastTimeout);
+    this._toastTimeout = setTimeout(() => {
+      toast.style.display = "none";
+    }, 6000);
   }
 }
 

@@ -11,6 +11,7 @@ class MealsAndGroceriesProductsView extends HTMLElement {
     this._search = "";
     this._error = null;
     this._editingProductId = null;
+    this._formOpen = false;
     this._formStoreId = "";
     this._formCategoryId = "";
     this._formBarcodes = [];
@@ -286,6 +287,7 @@ class MealsAndGroceriesProductsView extends HTMLElement {
 
   async _openForm(productId) {
     this._editingProductId = productId;
+    this._formOpen = true;
     const product = productId
       ? this._products.find((p) => p.id === productId)
       : null;
@@ -301,8 +303,24 @@ class MealsAndGroceriesProductsView extends HTMLElement {
     this._renderForm();
   }
 
+  /**
+   * Called by the root panel's unknown-barcode inbox. If a form (add or
+   * edit) is already open, the barcode is just appended there instead of
+   * discarding in-progress edits by opening a fresh add-product form.
+   */
+  async openWithBarcode(barcode) {
+    if (!this._formOpen) {
+      await this._openForm(null);
+    }
+    if (!this._formBarcodes.includes(barcode)) {
+      this._formBarcodes.push(barcode);
+      this._renderChips();
+    }
+  }
+
   _closeForm() {
     this._editingProductId = null;
+    this._formOpen = false;
     this.shadowRoot.getElementById("form-container").innerHTML = "";
   }
 

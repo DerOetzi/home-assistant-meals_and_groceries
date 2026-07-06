@@ -27,3 +27,5 @@ WEEKDAY_IDS = [
     "saturday",
     "sunday",
 ]
+
+DISH_KINDS = ["dish", "restaurant", "away"]

@@ -6,7 +6,13 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 
-from .const import DOMAIN, EVENT_BARCODE_UNKNOWN, GLOBAL_DATA_KEY, SUBENTRY_TYPE_SHOPPING_LIST
+from .const import (
+    DISH_KINDS,
+    DOMAIN,
+    EVENT_BARCODE_UNKNOWN,
+    GLOBAL_DATA_KEY,
+    SUBENTRY_TYPE_SHOPPING_LIST,
+)
 from .mealplan import async_set_day_meal
 
 ERR_NOT_FOUND = "not_found"
@@ -276,7 +282,7 @@ def ws_dishes_list(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
     {
         vol.Required("type"): "meals_and_groceries/dishes/add",
         vol.Required("name"): str,
-        vol.Required("kind"): vol.In(["dish", "restaurant"]),
+        vol.Required("kind"): vol.In(DISH_KINDS),
         vol.Optional("notes"): vol.Any(str, None),
     }
 )
@@ -294,7 +300,7 @@ async def ws_dishes_add(hass: HomeAssistant, connection: websocket_api.ActiveCon
         vol.Required("type"): "meals_and_groceries/dishes/update",
         vol.Required("dish_id"): str,
         vol.Required("name"): str,
-        vol.Required("kind"): vol.In(["dish", "restaurant"]),
+        vol.Required("kind"): vol.In(DISH_KINDS),
         vol.Optional("notes"): vol.Any(str, None),
     }
 )
