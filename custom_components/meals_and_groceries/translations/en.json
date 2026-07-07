@@ -54,15 +54,35 @@
           "description": "Free-form text, used when no dish is selected."
         }
       }
+    },
+    "select_shopping_list": {
+      "name": "Select shopping list",
+      "description": "Selects the list shown on the panel's shopping-list tab (e.g. via a zone automation when arriving at the store).",
+      "fields": {
+        "entity_id": {
+          "name": "Shopping list",
+          "description": "The todo entity of the shopping list to show."
+        }
+      }
     }
   },
   "entity": {
     "sensor": {
-      "today": { "name": "Meal plan today" },
-      "tomorrow": { "name": "Meal plan tomorrow" },
-      "week_plan": { "name": "Weekly meal plan" },
-      "item_count": { "name": "Open items" },
-      "last_changed": { "name": "Last changed" }
+      "today": {
+        "name": "Meal plan today"
+      },
+      "tomorrow": {
+        "name": "Meal plan tomorrow"
+      },
+      "week_plan": {
+        "name": "Weekly meal plan"
+      },
+      "item_count": {
+        "name": "Open items"
+      },
+      "last_changed": {
+        "name": "Last changed"
+      }
     }
   },
   "weekdays": {

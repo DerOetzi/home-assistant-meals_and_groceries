@@ -9,7 +9,15 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, STORAGE_VERSION
-from .models import Dish, MealPlanDay, Product, ShoppingCategory, TodoItemRecord
+from .models import (
+    Dish,
+    Group,
+    MealPlanDay,
+    Product,
+    ShoppingCategory,
+    Tab,
+    TodoItemRecord,
+)
 
 
 class ProductStore:
@@ -51,6 +59,7 @@ class ProductStore:
         store_subentry_id: str,
         category_id: str | None = None,
         barcodes: list[str] | None = None,
+        group_ids: list[str] | None = None,
     ) -> Product:
         product = Product(
             id=uuid.uuid4().hex,
@@ -58,6 +67,7 @@ class ProductStore:
             store_subentry_id=store_subentry_id,
             category_id=category_id,
             barcodes=list(barcodes) if barcodes else [],
+            group_ids=list(group_ids) if group_ids else [],
         )
         self.products.append(product)
         return product
@@ -69,6 +79,7 @@ class ProductStore:
         name: str,
         category_id: str | None,
         barcodes: list[str],
+        group_ids: list[str],
     ) -> None:
         product = self.get(product_id)
         if product is None:
@@ -76,6 +87,7 @@ class ProductStore:
         product.name = name
         product.category_id = category_id
         product.barcodes = list(barcodes)
+        product.group_ids = list(group_ids)
 
     def delete(self, product_id: str) -> None:
         self.products = [p for p in self.products if p.id != product_id]
@@ -107,13 +119,32 @@ class DishStore:
                 return dish
         return None
 
-    def add(self, name: str, *, kind: str, notes: str | None = None) -> Dish:
-        dish = Dish(id=uuid.uuid4().hex, name=name, kind=kind, notes=notes)
+    def add(
+        self,
+        name: str,
+        *,
+        kind: str,
+        notes: str | None = None,
+        ingredients: list[str] | None = None,
+    ) -> Dish:
+        dish = Dish(
+            id=uuid.uuid4().hex,
+            name=name,
+            kind=kind,
+            notes=notes,
+            ingredients=list(ingredients) if ingredients else [],
+        )
         self.dishes.append(dish)
         return dish
 
     def update(
-        self, dish_id: str, *, name: str, kind: str, notes: str | None
+        self,
+        dish_id: str,
+        *,
+        name: str,
+        kind: str,
+        notes: str | None,
+        ingredients: list[str],
     ) -> None:
         dish = self.get(dish_id)
         if dish is None:
@@ -121,9 +152,108 @@ class DishStore:
         dish.name = name
         dish.kind = kind
         dish.notes = notes
+        dish.ingredients = list(ingredients)
 
     def delete(self, dish_id: str) -> None:
         self.dishes = [d for d in self.dishes if d.id != dish_id]
+
+
+class GroupStore:
+    """Persists the global, store-independent product groups."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.groups")
+        self.groups: list[Group] = []
+
+    async def async_load(self) -> None:
+        data = await self._store.async_load()
+        if data:
+            self.groups = [Group(**g) for g in data.get("groups", [])]
+
+    async def async_save(self) -> None:
+        await self._store.async_save(
+            {"groups": [dataclasses.asdict(g) for g in self.groups]}
+        )
+
+    async def async_remove(self) -> None:
+        await self._store.async_remove()
+
+    def get(self, group_id: str) -> Group | None:
+        for group in self.groups:
+            if group.id == group_id:
+                return group
+        return None
+
+    def add(self, name: str) -> Group:
+        group = Group(id=uuid.uuid4().hex, name=name, sort_index=len(self.groups))
+        self.groups.append(group)
+        return group
+
+    def update(self, group_id: str, *, name: str) -> None:
+        group = self.get(group_id)
+        if group is None:
+            raise KeyError(group_id)
+        group.name = name
+
+    def delete(self, group_id: str) -> None:
+        self.groups = [g for g in self.groups if g.id != group_id]
+
+    def reorder(self, ordered_ids: list[str]) -> None:
+        by_id = {g.id: g for g in self.groups}
+        for index, group_id in enumerate(ordered_ids):
+            by_id[group_id].sort_index = index
+
+
+class TabStore:
+    """Persists the configured extra daily-use panel tabs."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.tabs")
+        self.tabs: list[Tab] = []
+
+    async def async_load(self) -> None:
+        data = await self._store.async_load()
+        if data:
+            self.tabs = [Tab(**t) for t in data.get("tabs", [])]
+
+    async def async_save(self) -> None:
+        await self._store.async_save(
+            {"tabs": [dataclasses.asdict(t) for t in self.tabs]}
+        )
+
+    async def async_remove(self) -> None:
+        await self._store.async_remove()
+
+    def get(self, tab_id: str) -> Tab | None:
+        for tab in self.tabs:
+            if tab.id == tab_id:
+                return tab
+        return None
+
+    def add(self, name: str, *, group_ids: list[str] | None = None) -> Tab:
+        tab = Tab(
+            id=uuid.uuid4().hex,
+            name=name,
+            sort_index=len(self.tabs),
+            group_ids=list(group_ids) if group_ids else [],
+        )
+        self.tabs.append(tab)
+        return tab
+
+    def update(self, tab_id: str, *, name: str, group_ids: list[str]) -> None:
+        tab = self.get(tab_id)
+        if tab is None:
+            raise KeyError(tab_id)
+        tab.name = name
+        tab.group_ids = list(group_ids)
+
+    def delete(self, tab_id: str) -> None:
+        self.tabs = [t for t in self.tabs if t.id != tab_id]
+
+    def reorder(self, ordered_ids: list[str]) -> None:
+        by_id = {t.id: t for t in self.tabs}
+        for index, tab_id in enumerate(ordered_ids):
+            by_id[tab_id].sort_index = index
 
 
 class MealPlanStore:

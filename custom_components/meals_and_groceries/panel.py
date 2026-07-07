@@ -26,7 +26,7 @@ async def async_setup(hass: HomeAssistant) -> None:
         sidebar_title="Meals & Groceries",
         sidebar_icon="mdi:cart",
         module_url=f"{STATIC_URL_PATH}/meals-and-groceries-panel.js",
-        require_admin=True,
+        require_admin=False,
     )
 
 

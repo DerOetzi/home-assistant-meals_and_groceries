@@ -24,3 +24,13 @@ set_day_meal:
       required: false
       selector:
         text:
+
+select_shopping_list:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          filter:
+            domain: todo
+            integration: meals_and_groceries

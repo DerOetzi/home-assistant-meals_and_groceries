@@ -10,6 +10,8 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
     this._categories = [];
     this._error = null;
     this._draggingId = null;
+    this._editingCategoryId = null;
+    this._formName = "";
   }
 
   connectedCallback() {
@@ -35,11 +37,18 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
     return this._hass;
   }
 
+  refresh() {
+    if (this._hass && this._selectedStoreId) {
+      this._loadCategories();
+    }
+  }
+
   _buildShell() {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display: block; }
-        .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .toolbar { display: flex; gap: 8px; margin-bottom: 8px; }
+        .toolbar select { flex: 1; }
         select, input {
           font: inherit;
           padding: 8px;
@@ -56,6 +65,11 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
           cursor: pointer;
           background: var(--primary-color, #03a9f4);
           color: var(--text-primary-color, #fff);
+        }
+        button.secondary {
+          background: none;
+          color: var(--primary-text-color, inherit);
+          border: 1px solid var(--divider-color, #ccc);
         }
         button.danger { background: var(--error-color, #db4437); }
         button.icon {
@@ -81,48 +95,52 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
         li.dragover { border-color: var(--primary-color, #03a9f4); }
         li .name { flex: 1; }
         li .actions { display: flex; gap: 4px; }
-        .add-row { display: flex; gap: 8px; margin-top: 16px; }
-        .add-row input { flex: 1; }
+        #form-container:empty { display: none; }
+        .overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: flex-start;
+          justify-content: center;
+          padding: 5vh 16px;
+          overflow-y: auto;
+          z-index: 10;
+        }
+        .form {
+          width: 100%;
+          max-width: 480px;
+          padding: 16px;
+          border-radius: 8px;
+          background: var(--card-background-color, #fff);
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+        }
+        .form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+        .form-row label { font-size: 12px; color: var(--secondary-text-color, inherit); }
+        .form-actions { display: flex; gap: 8px; justify-content: flex-end; }
       </style>
       <div class="toolbar">
-        <label id="store-label"></label>
         <select id="store-select"></select>
+        <button id="add-btn"></button>
       </div>
       <p id="hint"></p>
       <div id="error"></div>
       <ul id="list"></ul>
-      <div class="add-row">
-        <input id="new-name" type="text" />
-        <button id="add-btn"></button>
-      </div>
+      <div id="form-container"></div>
     `;
 
     this.shadowRoot.getElementById("store-select").addEventListener("change", (event) => {
       this._selectedStoreId = event.target.value;
       this._loadCategories();
     });
-    this.shadowRoot.getElementById("new-name").addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        this._addCategory();
-      }
-    });
-    this.shadowRoot.getElementById("add-btn").addEventListener("click", () =>
-      this._addCategory()
-    );
+    this.shadowRoot
+      .getElementById("add-btn")
+      .addEventListener("click", () => this._openForm(null));
   }
 
   _applyLabels() {
     const hass = this._hass;
-    this.shadowRoot.getElementById("store-label").textContent = t(
-      hass,
-      "categories_store_label"
-    );
     this.shadowRoot.getElementById("hint").textContent = t(hass, "drag_hint");
-    this.shadowRoot.getElementById("new-name").placeholder = t(
-      hass,
-      "category_name_placeholder"
-    );
     this.shadowRoot.getElementById("add-btn").textContent = t(hass, "add_category");
   }
 
@@ -196,9 +214,9 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
       .map(
         (category) => `
         <li draggable="true" data-id="${category.id}">
-          <span class="name" data-name>${_escape(category.name)}</span>
+          <span class="name">${_escape(category.name)}</span>
           <span class="actions">
-            <button class="icon" data-action="rename" data-id="${category.id}">${t(
+            <button class="icon" data-action="edit" data-id="${category.id}">${t(
           hass,
           "edit"
         )}</button>
@@ -231,68 +249,93 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
     listEl.querySelectorAll("[data-action='delete']").forEach((button) => {
       button.addEventListener("click", () => this._deleteCategory(button.dataset.id));
     });
-    listEl.querySelectorAll("[data-action='rename']").forEach((button) => {
-      button.addEventListener("click", () => this._startRename(button.dataset.id));
+    listEl.querySelectorAll("[data-action='edit']").forEach((button) => {
+      button.addEventListener("click", () => this._openForm(button.dataset.id));
     });
   }
 
-  _startRename(categoryId) {
-    const li = this.shadowRoot.querySelector(`li[data-id="${categoryId}"]`);
-    const nameSpan = li.querySelector("[data-name]");
-    const category = this._categories.find((c) => c.id === categoryId);
-    nameSpan.innerHTML = `<input type="text" value="${_escapeAttr(category.name)}" />`;
-    const input = nameSpan.querySelector("input");
-    input.focus();
-    input.select();
-    const commit = async () => {
-      const newName = input.value.trim();
-      if (newName && newName !== category.name) {
-        await this._renameCategory(categoryId, newName);
-      } else {
-        this._renderList();
-      }
-    };
-    input.addEventListener("keydown", (event) => {
+  _openForm(categoryId) {
+    this._editingCategoryId = categoryId;
+    const category = categoryId
+      ? this._categories.find((c) => c.id === categoryId)
+      : null;
+    this._formName = category?.name || "";
+    this._renderForm();
+  }
+
+  _closeForm() {
+    this._editingCategoryId = null;
+    this.shadowRoot.getElementById("form-container").innerHTML = "";
+  }
+
+  _renderForm() {
+    const hass = this._hass;
+    const container = this.shadowRoot.getElementById("form-container");
+    const isEdit = this._editingCategoryId !== null;
+
+    container.innerHTML = `
+      <div class="overlay" id="overlay">
+        <div class="form">
+          <h3>${t(hass, isEdit ? "edit" : "add_category")}</h3>
+          <div class="form-row">
+            <label>${t(hass, "product_name")}</label>
+            <input id="f-name" type="text" value="${_escapeAttr(this._formName)}"
+              placeholder="${t(hass, "category_name_placeholder")}" />
+          </div>
+          <div class="form-actions">
+            <button class="secondary" id="f-cancel">${t(hass, "cancel")}</button>
+            <button id="f-save">${t(hass, "save")}</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const nameInput = container.querySelector("#f-name");
+    nameInput.focus();
+    nameInput.addEventListener("input", (event) => {
+      this._formName = event.target.value;
+    });
+    nameInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        commit();
-      } else if (event.key === "Escape") {
-        this._renderList();
+        this._save();
       }
     });
-    input.addEventListener("blur", commit);
+    container.querySelector("#overlay").addEventListener("click", (event) => {
+      if (event.target.id === "overlay") {
+        this._closeForm();
+      }
+    });
+    container
+      .querySelector("#f-cancel")
+      .addEventListener("click", () => this._closeForm());
+    container.querySelector("#f-save").addEventListener("click", () => this._save());
   }
 
-  async _renameCategory(categoryId, name) {
-    try {
-      await callWS(this._hass, "meals_and_groceries/categories/update", {
-        subentry_id: this._selectedStoreId,
-        category_id: categoryId,
-        name,
-      });
-      await this._loadCategories();
-    } catch (err) {
-      this._error = err?.message || String(err);
-      this._renderList();
-    }
-  }
-
-  async _addCategory() {
-    const input = this.shadowRoot.getElementById("new-name");
-    const name = input.value.trim();
-    if (!name || !this._selectedStoreId) {
+  async _save() {
+    const hass = this._hass;
+    const name = this._formName.trim();
+    if (!name) {
+      window.alert(t(hass, "name_required"));
       return;
     }
     try {
-      await callWS(this._hass, "meals_and_groceries/categories/add", {
-        subentry_id: this._selectedStoreId,
-        name,
-      });
-      input.value = "";
+      if (this._editingCategoryId) {
+        await callWS(hass, "meals_and_groceries/categories/update", {
+          subentry_id: this._selectedStoreId,
+          category_id: this._editingCategoryId,
+          name,
+        });
+      } else {
+        await callWS(hass, "meals_and_groceries/categories/add", {
+          subentry_id: this._selectedStoreId,
+          name,
+        });
+      }
+      this._closeForm();
       await this._loadCategories();
     } catch (err) {
-      this._error = err?.message || String(err);
-      this._renderList();
+      window.alert(`${t(hass, "error_prefix")}: ${err?.message || err}`);
     }
   }
 

@@ -12,6 +12,7 @@ class Product:
     store_subentry_id: str
     category_id: str | None = None
     barcodes: list[str] = field(default_factory=list)
+    group_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -43,6 +44,26 @@ class Dish:
     name: str
     kind: str  # "dish" | "restaurant"
     notes: str | None = None
+    ingredients: list[str] = field(default_factory=list)  # Product ids
+
+
+@dataclass
+class Group:
+    """A global, store-independent product group (e.g. "Lebensmittel")."""
+
+    id: str
+    name: str
+    sort_index: int
+
+
+@dataclass
+class Tab:
+    """A configured extra daily-use panel tab, showing an ordered set of groups."""
+
+    id: str
+    name: str
+    sort_index: int
+    group_ids: list[str] = field(default_factory=list)  # ordered
 
 
 @dataclass

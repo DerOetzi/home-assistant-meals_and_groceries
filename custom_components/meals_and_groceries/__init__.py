@@ -3,8 +3,12 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.storage import Store
 
@@ -12,9 +16,11 @@ from . import panel, websocket_api
 from .barcode import SCAN_BARCODE_SCHEMA, async_handle_scan_barcode
 from .const import (
     DOMAIN,
+    EVENT_SHOPPING_LIST_SELECTED,
     GLOBAL_DATA_KEY,
     PLATFORMS,
     SERVICE_SCAN_BARCODE,
+    SERVICE_SELECT_SHOPPING_LIST,
     SERVICE_SET_DAY_MEAL,
     STORAGE_VERSION,
     SUBENTRY_TYPE_SHOPPING_LIST,
@@ -24,9 +30,19 @@ from .mealplan import (
     async_handle_midnight_reset,
     async_handle_set_day_meal,
 )
-from .store import CategoryStore, DishStore, MealPlanStore, ProductStore, TodoItemStore
+from .store import (
+    CategoryStore,
+    DishStore,
+    GroupStore,
+    MealPlanStore,
+    ProductStore,
+    TabStore,
+    TodoItemStore,
+)
 
 _FRONTEND_REGISTERED_KEY = "_frontend_registered"
+
+SELECT_SHOPPING_LIST_SCHEMA = vol.Schema({vol.Required("entity_id"): cv.entity_id})
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -41,11 +57,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     mealplan_store = MealPlanStore(hass)
     await mealplan_store.async_load()
 
+    group_store = GroupStore(hass)
+    await group_store.async_load()
+
+    tab_store = TabStore(hass)
+    await tab_store.async_load()
+
     async def _handle_scan_barcode(call: ServiceCall) -> None:
         await async_handle_scan_barcode(hass, call)
 
     async def _handle_set_day_meal(call: ServiceCall) -> None:
         await async_handle_set_day_meal(hass, call)
+
+    async def _handle_select_shopping_list(call: ServiceCall) -> None:
+        _async_select_shopping_list(hass, call.data["entity_id"])
 
     async def _handle_midnight(now: datetime) -> None:
         await async_handle_midnight_reset(hass, now)
@@ -55,6 +80,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_DAY_MEAL, _handle_set_day_meal, schema=SET_DAY_MEAL_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SELECT_SHOPPING_LIST,
+        _handle_select_shopping_list,
+        schema=SELECT_SHOPPING_LIST_SCHEMA,
     )
 
     midnight_unsub = async_track_time_change(
@@ -66,6 +97,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "products": product_store,
         "dishes": dish_store,
         "mealplan": mealplan_store,
+        "groups": group_store,
+        "tabs": tab_store,
         "midnight_unsub": midnight_unsub,
     }
 
@@ -89,12 +122,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         }
 
     await _async_cleanup_orphaned_stores(hass, entry)
+    await _async_cleanup_dangling_refs(hass, entry)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 
     return True
+
+
+def _async_select_shopping_list(hass: HomeAssistant, entity_id: str) -> None:
+    """Select the shopping list shown on the panel's shopping-list tab.
+
+    Takes the todo entity of one of the integration's lists (its unique_id is
+    the shopping-list subentry id), remembers the selection and pushes it to
+    all connected panels via an event."""
+    registry = er.async_get(hass)
+    reg_entry = registry.async_get(entity_id)
+    subentry_id = reg_entry.unique_id if reg_entry else None
+    if (
+        reg_entry is None
+        or reg_entry.platform != DOMAIN
+        or subentry_id not in hass.data[DOMAIN]
+    ):
+        raise ServiceValidationError(
+            f"{entity_id} is not a Meals & Groceries shopping list"
+        )
+    hass.data[DOMAIN][GLOBAL_DATA_KEY]["selected_store_id"] = subentry_id
+    hass.bus.async_fire(
+        EVENT_SHOPPING_LIST_SELECTED,
+        {"subentry_id": subentry_id, "entity_id": entity_id},
+    )
 
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -110,6 +168,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN][GLOBAL_DATA_KEY]["midnight_unsub"]()
         hass.services.async_remove(DOMAIN, SERVICE_SCAN_BARCODE)
         hass.services.async_remove(DOMAIN, SERVICE_SET_DAY_MEAL)
+        hass.services.async_remove(DOMAIN, SERVICE_SELECT_SHOPPING_LIST)
         hass.data[DOMAIN].pop(GLOBAL_DATA_KEY, None)
         for subentry_id in list(entry.subentries):
             hass.data[DOMAIN].pop(subentry_id, None)
@@ -122,9 +181,60 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await ProductStore(hass).async_remove()
     await DishStore(hass).async_remove()
     await MealPlanStore(hass).async_remove()
+    await GroupStore(hass).async_remove()
+    await TabStore(hass).async_remove()
     for subentry_id in entry.subentries:
         await CategoryStore(hass, subentry_id).async_remove()
         await TodoItemStore(hass, subentry_id).async_remove()
+
+
+async def _async_cleanup_dangling_refs(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Drop references to entities that no longer exist (e.g. groups deleted
+    before delete-time cleanup existed, or edits made outside the UI)."""
+    data = hass.data[DOMAIN][GLOBAL_DATA_KEY]
+    product_store = data["products"]
+    dish_store = data["dishes"]
+    group_store = data["groups"]
+    tab_store = data["tabs"]
+
+    group_ids = {g.id for g in group_store.groups}
+    product_ids = {p.id for p in product_store.products}
+    category_ids_by_store = {
+        subentry_id: {c.id for c in list_data["categories"].categories}
+        for subentry_id, list_data in hass.data[DOMAIN].items()
+        if isinstance(list_data, dict) and "categories" in list_data
+    }
+
+    changed = False
+    for product in product_store.products:
+        kept = [g for g in product.group_ids if g in group_ids]
+        if len(kept) != len(product.group_ids):
+            product.group_ids = kept
+            changed = True
+        valid_categories = category_ids_by_store.get(product.store_subentry_id, set())
+        if product.category_id and product.category_id not in valid_categories:
+            product.category_id = None
+            changed = True
+    if changed:
+        await product_store.async_save()
+
+    changed = False
+    for dish in dish_store.dishes:
+        kept = [i for i in dish.ingredients if i in product_ids]
+        if len(kept) != len(dish.ingredients):
+            dish.ingredients = kept
+            changed = True
+    if changed:
+        await dish_store.async_save()
+
+    changed = False
+    for tab in tab_store.tabs:
+        kept = [g for g in tab.group_ids if g in group_ids]
+        if len(kept) != len(tab.group_ids):
+            tab.group_ids = kept
+            changed = True
+    if changed:
+        await tab_store.async_save()
 
 
 async def _async_cleanup_orphaned_stores(hass: HomeAssistant, entry: ConfigEntry) -> None:

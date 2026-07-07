@@ -1,6 +1,12 @@
 import { t } from "../translations.js";
 import { callWS } from "../ha-ws.js";
 import { subscribeTodoItems } from "./todo-subscribe.js";
+import {
+  PRODUCT_TILE_CSS,
+  renderProductTileHtml,
+  resolveTileState,
+  toggleProductTile,
+} from "./product-tile.js";
 import "./favorite-card-editor.js";
 
 class MealsAndGroceriesFavoriteCard extends HTMLElement {
@@ -93,13 +99,9 @@ class MealsAndGroceriesFavoriteCard extends HTMLElement {
     if (!items || !this._product) {
       return;
     }
-    const needle = this._product.name.toLowerCase();
-    const match = items.find(
-      (item) =>
-        item.status === "needs_action" && (item.summary || "").toLowerCase() === needle
-    );
-    this._isOn = !!match;
-    this._currentItemUid = match?.uid || null;
+    const { isOn, currentItemUid } = resolveTileState(items, this._product.name);
+    this._isOn = isOn;
+    this._currentItemUid = currentItemUid;
     this._render();
   }
 
@@ -108,22 +110,12 @@ class MealsAndGroceriesFavoriteCard extends HTMLElement {
       return;
     }
     try {
-      if (this._isOn) {
-        // remove_item expects the item's UID, unlike add_item which takes
-        // the summary text — using the name here would silently no-op.
-        if (!this._currentItemUid) {
-          return;
-        }
-        await this._hass.callService("todo", "remove_item", {
-          entity_id: this._store.todo_entity_id,
-          item: this._currentItemUid,
-        });
-      } else {
-        await this._hass.callService("todo", "add_item", {
-          entity_id: this._store.todo_entity_id,
-          item: this._product.name,
-        });
-      }
+      await toggleProductTile(this._hass, {
+        todoEntityId: this._store.todo_entity_id,
+        productName: this._product.name,
+        isOn: this._isOn,
+        currentItemUid: this._currentItemUid,
+      });
       // The shared todo/item/subscribe push updates `_isOn`; no optimistic
       // local toggle needed.
     } catch (err) {
@@ -154,63 +146,27 @@ class MealsAndGroceriesFavoriteCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>
+        /* The shared tile carries the full card chrome; keep the required
+           ha-card wrapper itself invisible so nothing renders doubled. */
         ha-card {
-          cursor: pointer;
-          padding: 12px 16px;
-          transition: background-color 0.15s ease, color 0.15s ease, filter 0.1s ease;
-          background: var(--card-background-color, #fff);
-          color: var(--primary-text-color, inherit);
-          box-shadow: var(--ha-card-box-shadow, none);
+          background: none;
+          box-shadow: none;
+          border: none;
           border-radius: var(--ha-card-border-radius, 12px);
         }
-        ha-card:active { filter: brightness(0.95); }
-        ha-card.on {
-          background: var(--primary-color, #03a9f4);
-          color: var(--text-primary-color, #fff);
-        }
-        ha-card.on:active { filter: brightness(1.1); }
-        .row { display: flex; align-items: center; gap: 12px; }
-        .icon { flex: none; color: inherit; opacity: 0.85; }
-        .text { flex: 1; min-width: 0; }
-        .title {
-          font-weight: 500;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .subtitle {
-          font-size: 12px;
-          opacity: 0.8;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .check { flex: none; color: inherit; }
+        ${PRODUCT_TILE_CSS}
       </style>
-      <ha-card class="${this._isOn ? "on" : ""}">
-        <div class="row">
-          <ha-icon
-            class="icon"
-            icon="${this._isOn ? "mdi:cart-check" : "mdi:cart-outline"}"
-          ></ha-icon>
-          <div class="text">
-            <div class="title">${_escape(this._product.name)}</div>
-            ${
-              this._categoryName
-                ? `<div class="subtitle">${_escape(this._categoryName)}</div>`
-                : ""
-            }
-          </div>
-          ${
-            this._isOn
-              ? `<ha-icon class="check" icon="mdi:check-circle"></ha-icon>`
-              : ""
-          }
-        </div>
+      <ha-card>
+        ${renderProductTileHtml({
+          id: this._product.id,
+          name: this._product.name,
+          subtitle: this._categoryName,
+          isOn: this._isOn,
+        })}
       </ha-card>
     `;
     this.shadowRoot
-      .querySelector("ha-card")
+      .querySelector(".tile")
       .addEventListener("click", () => this._toggle());
   }
 }

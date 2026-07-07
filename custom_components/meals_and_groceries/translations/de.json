@@ -54,15 +54,35 @@
           "description": "Freier Text, falls kein Gericht ausgewählt wird."
         }
       }
+    },
+    "select_shopping_list": {
+      "name": "Einkaufsliste auswählen",
+      "description": "Wählt die im Panel-Tab \"Einkaufsliste\" angezeigte Liste aus (z.B. per Zonen-Automation beim Betreten des Ladens).",
+      "fields": {
+        "entity_id": {
+          "name": "Einkaufsliste",
+          "description": "Die ToDo-Entität der anzuzeigenden Einkaufsliste."
+        }
+      }
     }
   },
   "entity": {
     "sensor": {
-      "today": { "name": "Essensplan heute" },
-      "tomorrow": { "name": "Essensplan morgen" },
-      "week_plan": { "name": "Wochenessensplan" },
-      "item_count": { "name": "Offene Artikel" },
-      "last_changed": { "name": "Letzte Änderung" }
+      "today": {
+        "name": "Essensplan heute"
+      },
+      "tomorrow": {
+        "name": "Essensplan morgen"
+      },
+      "week_plan": {
+        "name": "Wochenessensplan"
+      },
+      "item_count": {
+        "name": "Offene Artikel"
+      },
+      "last_changed": {
+        "name": "Letzte Änderung"
+      }
     }
   },
   "weekdays": {
