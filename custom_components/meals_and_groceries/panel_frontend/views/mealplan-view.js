@@ -213,7 +213,9 @@ class MealsAndGroceriesMealplanView extends HTMLElement {
   _dishOptionsHtml(selectedId, dishes = this._dishes) {
     const hass = this._hass;
     const groupOptions = (kind) => {
-      const items = dishes.filter((d) => d.kind === kind);
+      const items = dishes
+        .filter((d) => d.kind === kind)
+        .sort((a, b) => a.name.localeCompare(b.name));
       if (items.length === 0) {
         return "";
       }

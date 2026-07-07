@@ -167,7 +167,7 @@ class MealsAndGroceriesPanel extends HTMLElement {
       </style>
       <div class="toolbar">
         <ha-menu-button></ha-menu-button>
-        <div class="title">Meals &amp; Groceries</div>
+        <div class="title" id="panel-title"></div>
         <button id="config-toggle">
           <ha-icon icon="mdi:cog"></ha-icon>
         </button>
@@ -290,6 +290,10 @@ class MealsAndGroceriesPanel extends HTMLElement {
     if (!this._hass) {
       return;
     }
+    this.shadowRoot.getElementById("panel-title").textContent = t(
+      this._hass,
+      "panel_title"
+    );
     this.shadowRoot.querySelectorAll("button.tab").forEach((button) => {
       if (!button.dataset.fixedLabel) {
         button.textContent = t(this._hass, `tab_${button.dataset.tab}`);

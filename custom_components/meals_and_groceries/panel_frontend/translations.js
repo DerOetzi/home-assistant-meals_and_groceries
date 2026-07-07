@@ -1,5 +1,6 @@
 export const TRANSLATIONS = {
   en: {
+    panel_title: "Meals & Groceries",
     tab_categories: "Categories",
     tab_products: "Products",
     tab_dishes: "Dishes",
@@ -92,6 +93,7 @@ export const TRANSLATIONS = {
     tab_groups_label: "Groups shown on this tab (drag to reorder)",
   },
   de: {
+    panel_title: "Essen & Einkauf",
     tab_categories: "Kategorien",
     tab_products: "Produkte",
     tab_dishes: "Gerichte",

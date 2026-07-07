@@ -12,6 +12,11 @@ STATIC_URL_PATH = "/meals_and_groceries_panel"
 
 _PANEL_DIR = os.path.join(os.path.dirname(__file__), "panel_frontend")
 
+_SIDEBAR_TITLES = {
+    "de": "Essen & Einkauf",
+}
+_DEFAULT_SIDEBAR_TITLE = "Meals & Groceries"
+
 
 async def async_setup(hass: HomeAssistant) -> None:
     """Register the sidebar panel and serve its frontend assets."""
@@ -19,11 +24,17 @@ async def async_setup(hass: HomeAssistant) -> None:
         [StaticPathConfig(STATIC_URL_PATH, _PANEL_DIR, cache_headers=False)]
     )
 
+    # sidebar_title is set once at registration (not per connected user), so
+    # it follows the instance-wide language rather than each user's locale.
+    sidebar_title = _SIDEBAR_TITLES.get(
+        hass.config.language, _DEFAULT_SIDEBAR_TITLE
+    )
+
     await async_register_panel(
         hass,
         frontend_url_path=PANEL_URL_PATH,
         webcomponent_name="meals-and-groceries-panel",
-        sidebar_title="Meals & Groceries",
+        sidebar_title=sidebar_title,
         sidebar_icon="mdi:cart",
         module_url=f"{STATIC_URL_PATH}/meals-and-groceries-panel.js",
         require_admin=False,
