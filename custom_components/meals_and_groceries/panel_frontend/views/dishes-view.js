@@ -1,7 +1,7 @@
 import { t } from "../translations.js";
 import { callWS } from "../ha-ws.js";
 
-const KIND_IDS = ["dish", "restaurant", "away"];
+const KIND_IDS = ["dish", "restaurant", "away", "other"];
 
 function _kindKey(kind) {
   return KIND_IDS.includes(kind) ? `dish_kind_${kind}` : "dish_kind_dish";

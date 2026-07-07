@@ -20,6 +20,7 @@ class MealsAndGroceriesPanel extends HTMLElement {
     this._activeTab = DAILY_TABS[0];
     this._configMode = false;
     this._dynamicTabs = []; // Tab objects from tabs/list, sorted
+    this._storeTodoEntityIds = [];
     this._hass = null;
     this._narrow = false;
     this._built = false;
@@ -45,7 +46,21 @@ class MealsAndGroceriesPanel extends HTMLElement {
     this._subscribeBarcodeUnknown();
     if (first) {
       this._reloadDynamicTabs();
+      this._loadStores();
     }
+  }
+
+  async _loadStores() {
+    try {
+      const { stores } = await callWS(this._hass, "meals_and_groceries/stores/list");
+      this._storeTodoEntityIds = stores
+        .map((store) => store.todo_entity_id)
+        .filter(Boolean);
+    } catch (err) {
+      console.error("Meals & Groceries: failed to load stores", err);
+      return;
+    }
+    this._updateShoppingBadge();
   }
 
   get hass() {
@@ -117,6 +132,18 @@ class MealsAndGroceriesPanel extends HTMLElement {
         button.tab.active {
           color: var(--primary-color, #03a9f4);
           border-bottom-color: var(--primary-color, #03a9f4);
+        }
+        button.tab .badge {
+          display: inline-block;
+          margin-left: 6px;
+          min-width: 18px;
+          padding: 0 5px;
+          border-radius: 9px;
+          background: var(--primary-color, #03a9f4);
+          color: var(--text-primary-color, #fff);
+          font-size: 11px;
+          line-height: 18px;
+          text-align: center;
         }
         main {
           padding: 16px;
@@ -271,6 +298,40 @@ class MealsAndGroceriesPanel extends HTMLElement {
     const toggle = this.shadowRoot.getElementById("config-toggle");
     toggle.title = t(this._hass, "config_mode_button");
     toggle.classList.toggle("active", this._configMode);
+    this._updateShoppingBadge();
+  }
+
+  // Total open items across all shopping lists, shown on the shopping-list
+  // tab button. The todo entities' state is the open-item count, so plain
+  // hass updates keep this live.
+  _updateShoppingBadge() {
+    if (!this._hass || !this.shadowRoot) {
+      return;
+    }
+    const button = this.shadowRoot.querySelector(
+      'button.tab[data-tab="shoppinglist"]'
+    );
+    if (!button) {
+      return;
+    }
+    let count = 0;
+    for (const entityId of this._storeTodoEntityIds) {
+      const value = Number(this._hass.states[entityId]?.state);
+      if (!Number.isNaN(value)) {
+        count += value;
+      }
+    }
+    let badge = button.querySelector(".badge");
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "badge";
+        button.appendChild(badge);
+      }
+      badge.textContent = count;
+    } else if (badge) {
+      badge.remove();
+    }
   }
 
   _updateActiveTab() {

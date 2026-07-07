@@ -18,7 +18,7 @@ const WEEKDAY_IDS = [
   "sunday",
 ];
 
-const KIND_IDS = ["dish", "restaurant", "away"];
+const KIND_IDS = ["dish", "restaurant", "away", "other"];
 
 class MealsAndGroceriesMealplanView extends HTMLElement {
   constructor() {
@@ -109,6 +109,18 @@ class MealsAndGroceriesMealplanView extends HTMLElement {
           flex-wrap: wrap;
         }
         .day-label { width: 110px; font-weight: 500; flex-shrink: 0; }
+        #lookup-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+          margin-top: 24px;
+          padding: 12px 16px;
+          border: 1px solid var(--divider-color, #ccc);
+          border-radius: var(--ha-card-border-radius, 12px);
+          background: var(--card-background-color, #fff);
+          box-shadow: var(--ha-card-box-shadow, none);
+        }
         .day-controls { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
         .day-controls select { flex: 1; min-width: 160px; }
         .day-controls input { flex: 1; min-width: 160px; }
@@ -151,8 +163,32 @@ class MealsAndGroceriesMealplanView extends HTMLElement {
       </style>
       <div id="error"></div>
       <div id="grid"></div>
+      <div id="lookup-row">
+        <div class="day-label" id="lookup-label"></div>
+        <div class="day-controls">
+          <select id="lookup-select"></select>
+          <button
+            class="icon-btn"
+            id="lookup-cart"
+            style="display: none;"
+          ><ha-icon icon="mdi:cart-outline"></ha-icon></button>
+        </div>
+      </div>
       <div id="overlay-container"></div>
     `;
+
+    const lookupSelect = this.shadowRoot.getElementById("lookup-select");
+    const lookupCart = this.shadowRoot.getElementById("lookup-cart");
+    lookupSelect.addEventListener("change", () => {
+      lookupCart.style.display = this._dishHasIngredients(lookupSelect.value)
+        ? ""
+        : "none";
+    });
+    lookupCart.addEventListener("click", () => {
+      if (lookupSelect.value) {
+        this._openIngredientsOverlay(lookupSelect.value);
+      }
+    });
   }
 
   async _loadAll() {
@@ -174,10 +210,10 @@ class MealsAndGroceriesMealplanView extends HTMLElement {
     this._renderGrid();
   }
 
-  _dishOptionsHtml(selectedId) {
+  _dishOptionsHtml(selectedId, dishes = this._dishes) {
     const hass = this._hass;
     const groupOptions = (kind) => {
-      const items = this._dishes.filter((d) => d.kind === kind);
+      const items = dishes.filter((d) => d.kind === kind);
       if (items.length === 0) {
         return "";
       }
@@ -214,6 +250,31 @@ class MealsAndGroceriesMealplanView extends HTMLElement {
     errorEl.textContent = this._error
       ? `${t(hass, "error_prefix")}: ${this._error}`
       : "";
+
+    // Dish lookup row: browse any dish's ingredients without assigning it
+    // to a day.
+    this.shadowRoot.getElementById("lookup-label").textContent = t(
+      hass,
+      "mealplan_lookup_label"
+    );
+    const lookupSelect = this.shadowRoot.getElementById("lookup-select");
+    const lookupValue = lookupSelect.value;
+    // Only dishes that actually have ingredients — anything else would make
+    // the "ingredients" label a lie.
+    const withIngredients = this._dishes.filter(
+      (d) => (d.ingredients || []).length > 0
+    );
+    lookupSelect.innerHTML = this._dishOptionsHtml(
+      lookupValue || null,
+      withIngredients
+    );
+    this.shadowRoot.getElementById("lookup-row").style.display =
+      withIngredients.length ? "" : "none";
+    const lookupCart = this.shadowRoot.getElementById("lookup-cart");
+    lookupCart.title = t(hass, "mealplan_show_ingredients");
+    lookupCart.style.display = this._dishHasIngredients(lookupSelect.value)
+      ? ""
+      : "none";
 
     const gridEl = this.shadowRoot.getElementById("grid");
     const byIndex = new Map(this._days.map((day) => [day.weekday_index, day]));

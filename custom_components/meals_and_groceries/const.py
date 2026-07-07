@@ -30,4 +30,4 @@ WEEKDAY_IDS = [
     "sunday",
 ]
 
-DISH_KINDS = ["dish", "restaurant", "away"]
+DISH_KINDS = ["dish", "restaurant", "away", "other"]

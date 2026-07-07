@@ -48,6 +48,9 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
     if (first) {
       this._loadAll();
       this._subscribeSelectedList();
+    } else {
+      // Chip badges are fed by the todo entities' states — keep them live.
+      this._renderStoreChips();
     }
   }
 
@@ -107,13 +110,47 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
           background: var(--primary-color, #03a9f4);
           color: var(--text-primary-color, #fff);
         }
-        .toolbar {
+        .store-chips {
           display: flex;
           gap: 8px;
           margin-bottom: 16px;
-          flex-wrap: wrap;
+          overflow-x: auto;
+          padding-bottom: 4px;
         }
-        .toolbar select { flex: 1; min-width: 160px; }
+        .store-chip {
+          flex: none;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 14px;
+          border: 1px solid var(--divider-color, #ccc);
+          border-radius: 18px;
+          background: var(--card-background-color, #fff);
+          color: var(--primary-text-color, inherit);
+          cursor: pointer;
+          font: inherit;
+          white-space: nowrap;
+        }
+        .store-chip.active {
+          background: var(--primary-color, #03a9f4);
+          border-color: var(--primary-color, #03a9f4);
+          color: var(--text-primary-color, #fff);
+        }
+        .store-chip .badge {
+          display: inline-block;
+          min-width: 18px;
+          padding: 0 5px;
+          border-radius: 9px;
+          background: var(--primary-color, #03a9f4);
+          color: var(--text-primary-color, #fff);
+          font-size: 11px;
+          line-height: 18px;
+          text-align: center;
+        }
+        .store-chip.active .badge {
+          background: var(--text-primary-color, #fff);
+          color: var(--primary-color, #03a9f4);
+        }
         .add-row { display: flex; gap: 8px; margin-bottom: 16px; }
         .add-row input { flex: 1; }
         #error { color: var(--error-color, #db4437); }
@@ -140,9 +177,7 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
         .other-item ha-icon { color: var(--secondary-text-color, inherit); }
         ${PRODUCT_TILE_CSS}
       </style>
-      <div class="toolbar">
-        <select id="store-select"></select>
-      </div>
+      <div class="store-chips" id="store-chips"></div>
       <div class="add-row">
         <input id="add-input" type="text" />
         <button id="add-btn"></button>
@@ -152,9 +187,12 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
     `;
 
     this.shadowRoot
-      .getElementById("store-select")
-      .addEventListener("change", (event) => {
-        this._selectStore(event.target.value);
+      .getElementById("store-chips")
+      .addEventListener("click", (event) => {
+        const chip = event.target.closest("[data-store-id]");
+        if (chip && chip.dataset.storeId !== this._selectedStoreId) {
+          this._selectStore(chip.dataset.storeId);
+        }
       });
     const addInput = this.shadowRoot.getElementById("add-input");
     addInput.addEventListener("keydown", (event) => {
@@ -192,7 +230,7 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
       this._error = err?.message || String(err);
     }
     this._applyLabels();
-    this._renderStoreSelect();
+    this._renderStoreChips();
     const storeId =
       this._selectedStoreId || this._stores[0]?.subentry_id || "";
     if (storeId) {
@@ -214,21 +252,32 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
     );
   }
 
-  _renderStoreSelect() {
-    const selectEl = this.shadowRoot.getElementById("store-select");
-    selectEl.innerHTML = this._stores
-      .map(
-        (store) =>
-          `<option value="${store.subentry_id}" ${
-            store.subentry_id === this._selectedStoreId ? "selected" : ""
-          }>${_escape(store.title)}</option>`
-      )
+  _renderStoreChips() {
+    const chipsEl = this.shadowRoot?.getElementById("store-chips");
+    if (!chipsEl) {
+      return;
+    }
+    chipsEl.innerHTML = this._stores
+      .map((store) => {
+        const count = Number(
+          this._hass?.states[store.todo_entity_id]?.state
+        );
+        const badge =
+          count > 0 ? `<span class="badge">${count}</span>` : "";
+        return `
+          <button
+            class="store-chip ${
+              store.subentry_id === this._selectedStoreId ? "active" : ""
+            }"
+            data-store-id="${store.subentry_id}"
+          >${_escape(store.title)}${badge}</button>`;
+      })
       .join("");
   }
 
   async _selectStore(storeId) {
     this._selectedStoreId = storeId;
-    this._renderStoreSelect();
+    this._renderStoreChips();
     if (!this._categoriesByStore[storeId]) {
       try {
         const { categories } = await callWS(
