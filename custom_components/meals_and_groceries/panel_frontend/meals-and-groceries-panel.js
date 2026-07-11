@@ -301,6 +301,7 @@ class MealsAndGroceriesPanel extends HTMLElement {
     });
     const toggle = this.shadowRoot.getElementById("config-toggle");
     toggle.title = t(this._hass, "config_mode_button");
+    toggle.setAttribute("aria-label", t(this._hass, "config_mode_button"));
     toggle.classList.toggle("active", this._configMode);
     this._updateShoppingBadge();
   }

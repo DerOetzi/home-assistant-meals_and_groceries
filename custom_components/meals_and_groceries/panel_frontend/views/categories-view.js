@@ -1,5 +1,6 @@
 import { t } from "../translations.js";
 import { callWS } from "../ha-ws.js";
+import { setIconButton, iconButtonMarkup } from "../cards/icon-button.js";
 
 class MealsAndGroceriesCategoriesView extends HTMLElement {
   constructor() {
@@ -72,11 +73,14 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
           border: 1px solid var(--divider-color, #ccc);
         }
         button.danger { background: var(--error-color, #db4437); }
-        button.icon {
-          background: none;
-          color: var(--primary-text-color, inherit);
-          border: 1px solid var(--divider-color, #ccc);
-          padding: 4px 10px;
+        button.icon-only {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          flex-shrink: 0;
         }
         #hint { color: var(--secondary-text-color, inherit); font-size: 12px; margin-bottom: 8px; }
         #error { color: var(--error-color, #db4437); }
@@ -93,6 +97,12 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
           cursor: grab;
         }
         li.dragover { border-color: var(--primary-color, #03a9f4); }
+        li .drag-handle {
+          flex-shrink: 0;
+          color: var(--secondary-text-color, inherit);
+          opacity: 0.6;
+          cursor: grab;
+        }
         li .name { flex: 1; }
         li .actions { display: flex; gap: 4px; }
         #form-container:empty { display: none; }
@@ -121,7 +131,7 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
       </style>
       <div class="toolbar">
         <select id="store-select"></select>
-        <button id="add-btn"></button>
+        <button id="add-btn" class="icon-only"></button>
       </div>
       <p id="hint"></p>
       <div id="error"></div>
@@ -141,7 +151,7 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
   _applyLabels() {
     const hass = this._hass;
     this.shadowRoot.getElementById("hint").textContent = t(hass, "drag_hint");
-    this.shadowRoot.getElementById("add-btn").textContent = t(hass, "add_category");
+    setIconButton(this.shadowRoot.getElementById("add-btn"), hass, "add_category", "mdi:plus");
   }
 
   async _loadStores() {
@@ -214,16 +224,19 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
       .map(
         (category) => `
         <li draggable="true" data-id="${category.id}">
+          <ha-icon class="drag-handle" icon="mdi:drag"></ha-icon>
           <span class="name">${_escape(category.name)}</span>
           <span class="actions">
-            <button class="icon" data-action="edit" data-id="${category.id}">${t(
-          hass,
-          "edit"
-        )}</button>
-            <button class="danger" data-action="delete" data-id="${category.id}">${t(
-          hass,
-          "delete"
-        )}</button>
+            <button class="secondary icon-only" ${
+              iconButtonMarkup(hass, "edit", "mdi:pencil").attrs
+            } data-action="edit" data-id="${category.id}">${
+          iconButtonMarkup(hass, "edit", "mdi:pencil").content
+        }</button>
+            <button class="danger icon-only" ${
+              iconButtonMarkup(hass, "delete", "mdi:delete-outline").attrs
+            } data-action="delete" data-id="${category.id}">${
+          iconButtonMarkup(hass, "delete", "mdi:delete-outline").content
+        }</button>
           </span>
         </li>`
       )
@@ -283,8 +296,12 @@ class MealsAndGroceriesCategoriesView extends HTMLElement {
               placeholder="${t(hass, "category_name_placeholder")}" />
           </div>
           <div class="form-actions">
-            <button class="secondary" id="f-cancel">${t(hass, "cancel")}</button>
-            <button id="f-save">${t(hass, "save")}</button>
+            <button class="secondary icon-only" id="f-cancel" ${
+              iconButtonMarkup(hass, "cancel", "mdi:close").attrs
+            }>${iconButtonMarkup(hass, "cancel", "mdi:close").content}</button>
+            <button class="icon-only" id="f-save" ${
+              iconButtonMarkup(hass, "save", "mdi:content-save").attrs
+            }>${iconButtonMarkup(hass, "save", "mdi:content-save").content}</button>
           </div>
         </div>
       </div>

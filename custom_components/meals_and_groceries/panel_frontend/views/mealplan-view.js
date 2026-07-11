@@ -171,6 +171,7 @@ class MealsAndGroceriesMealplanView extends HTMLElement {
             class="icon-btn"
             id="lookup-cart"
             style="display: none;"
+            aria-label="${t(this._hass, "mealplan_show_ingredients")}"
           ><ha-icon icon="mdi:cart-outline"></ha-icon></button>
         </div>
       </div>
@@ -274,6 +275,7 @@ class MealsAndGroceriesMealplanView extends HTMLElement {
       withIngredients.length ? "" : "none";
     const lookupCart = this.shadowRoot.getElementById("lookup-cart");
     lookupCart.title = t(hass, "mealplan_show_ingredients");
+    lookupCart.setAttribute("aria-label", t(hass, "mealplan_show_ingredients"));
     lookupCart.style.display = this._dishHasIngredients(lookupSelect.value)
       ? ""
       : "none";
@@ -299,9 +301,15 @@ class MealsAndGroceriesMealplanView extends HTMLElement {
               class="icon-btn"
               data-role="cart"
               title="${t(hass, "mealplan_show_ingredients")}"
+              aria-label="${t(hass, "mealplan_show_ingredients")}"
               style="${showCart ? "" : "display: none;"}"
             ><ha-icon icon="mdi:cart-outline"></ha-icon></button>
-            <button class="secondary" data-role="clear">${t(hass, "clear")}</button>
+            <button
+              class="secondary icon-btn"
+              data-role="clear"
+              title="${t(hass, "clear")}"
+              aria-label="${t(hass, "clear")}"
+            ><ha-icon icon="mdi:close-circle-outline"></ha-icon></button>
           </div>
         </div>`;
     }).join("");

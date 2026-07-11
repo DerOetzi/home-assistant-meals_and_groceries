@@ -1,5 +1,6 @@
 import { t } from "../translations.js";
 import { callWS } from "../ha-ws.js";
+import { setIconButton, iconButtonMarkup } from "../cards/icon-button.js";
 
 // Config page for the extra daily-use panel tabs. Groups are managed inside
 // the tab form (tab -> 1:n -> ordered groups): new groups are created on
@@ -78,11 +79,14 @@ class MealsAndGroceriesTabsView extends HTMLElement {
           border: 1px solid var(--divider-color, #ccc);
         }
         button.danger { background: var(--error-color, #db4437); }
-        button.icon {
-          background: none;
-          color: var(--primary-text-color, inherit);
-          border: 1px solid var(--divider-color, #ccc);
-          padding: 4px 10px;
+        button.icon-only {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          flex-shrink: 0;
         }
         .toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
         #error { color: var(--error-color, #db4437); }
@@ -99,6 +103,12 @@ class MealsAndGroceriesTabsView extends HTMLElement {
           cursor: grab;
         }
         li.dragover { border-color: var(--primary-color, #03a9f4); }
+        li .drag-handle {
+          flex-shrink: 0;
+          color: var(--secondary-text-color, inherit);
+          opacity: 0.6;
+          cursor: grab;
+        }
         li .name { flex: 1; }
         li .meta { color: var(--secondary-text-color, inherit); font-size: 12px; }
         li .actions { display: flex; gap: 4px; }
@@ -129,7 +139,7 @@ class MealsAndGroceriesTabsView extends HTMLElement {
         .group-add-row input { flex: 1; }
       </style>
       <div class="toolbar">
-        <button id="add-btn"></button>
+        <button id="add-btn" class="icon-only"></button>
       </div>
       <div id="error"></div>
       <ul id="list"></ul>
@@ -142,7 +152,7 @@ class MealsAndGroceriesTabsView extends HTMLElement {
   }
 
   _applyLabels() {
-    this.shadowRoot.getElementById("add-btn").textContent = t(this._hass, "add_tab");
+    setIconButton(this.shadowRoot.getElementById("add-btn"), this._hass, "add_tab", "mdi:plus");
   }
 
   async _loadAll() {
@@ -185,18 +195,21 @@ class MealsAndGroceriesTabsView extends HTMLElement {
           .join(", ");
         return `
         <li draggable="true" data-id="${tab.id}">
+          <ha-icon class="drag-handle" icon="mdi:drag"></ha-icon>
           <span class="name">${_escape(tab.name)}
             <div class="meta">${_escape(groupNames)}</div>
           </span>
           <span class="actions">
-            <button class="icon" data-action="edit" data-id="${tab.id}">${t(
-          hass,
-          "edit"
-        )}</button>
-            <button class="danger" data-action="delete" data-id="${tab.id}">${t(
-          hass,
-          "delete"
-        )}</button>
+            <button class="secondary icon-only" ${
+              iconButtonMarkup(hass, "edit", "mdi:pencil").attrs
+            } data-action="edit" data-id="${tab.id}">${
+          iconButtonMarkup(hass, "edit", "mdi:pencil").content
+        }</button>
+            <button class="danger icon-only" ${
+              iconButtonMarkup(hass, "delete", "mdi:delete-outline").attrs
+            } data-action="delete" data-id="${tab.id}">${
+          iconButtonMarkup(hass, "delete", "mdi:delete-outline").content
+        }</button>
           </span>
         </li>`;
       })
@@ -272,15 +285,18 @@ class MealsAndGroceriesTabsView extends HTMLElement {
             <div class="group-add-row">
               <input id="f-group-name" type="text"
                 placeholder="${t(hass, "group_name_placeholder")}" />
-              <button class="secondary" id="f-group-add">${t(
-                hass,
-                "add_group_button"
-              )}</button>
+              <button class="secondary icon-only" id="f-group-add" ${
+                iconButtonMarkup(hass, "add_group_button", "mdi:plus").attrs
+              }>${iconButtonMarkup(hass, "add_group_button", "mdi:plus").content}</button>
             </div>
           </div>
           <div class="form-actions">
-            <button class="secondary" id="f-cancel">${t(hass, "cancel")}</button>
-            <button id="f-save">${t(hass, "save")}</button>
+            <button class="secondary icon-only" id="f-cancel" ${
+              iconButtonMarkup(hass, "cancel", "mdi:close").attrs
+            }>${iconButtonMarkup(hass, "cancel", "mdi:close").content}</button>
+            <button class="icon-only" id="f-save" ${
+              iconButtonMarkup(hass, "save", "mdi:content-save").attrs
+            }>${iconButtonMarkup(hass, "save", "mdi:content-save").content}</button>
           </div>
         </div>
       </div>
@@ -330,10 +346,19 @@ class MealsAndGroceriesTabsView extends HTMLElement {
       .map(
         (entry, index) => `
         <li draggable="true" data-index="${index}">
+          <ha-icon class="drag-handle" icon="mdi:drag"></ha-icon>
           <span class="name" data-name>${_escape(entry.name)}</span>
           <span class="actions">
-            <button class="icon" data-rename="${index}">${t(hass, "edit")}</button>
-            <button class="danger" data-remove="${index}">${t(hass, "delete")}</button>
+            <button class="secondary icon-only" ${
+              iconButtonMarkup(hass, "edit", "mdi:pencil").attrs
+            } data-rename="${index}">${
+          iconButtonMarkup(hass, "edit", "mdi:pencil").content
+        }</button>
+            <button class="danger icon-only" ${
+              iconButtonMarkup(hass, "delete", "mdi:delete-outline").attrs
+            } data-remove="${index}">${
+          iconButtonMarkup(hass, "delete", "mdi:delete-outline").content
+        }</button>
           </span>
         </li>`
       )

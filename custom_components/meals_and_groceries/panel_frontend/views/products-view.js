@@ -1,5 +1,6 @@
 import { t } from "../translations.js";
 import { callWS } from "../ha-ws.js";
+import { setIconButton, iconButtonMarkup } from "../cards/icon-button.js";
 
 class MealsAndGroceriesProductsView extends HTMLElement {
   constructor() {
@@ -79,6 +80,15 @@ class MealsAndGroceriesProductsView extends HTMLElement {
           border: 1px solid var(--divider-color, #ccc);
         }
         button.danger { background: var(--error-color, #db4437); }
+        button.icon-only {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          flex-shrink: 0;
+        }
         table { width: 100%; border-collapse: collapse; }
         th, td {
           text-align: left;
@@ -87,6 +97,35 @@ class MealsAndGroceriesProductsView extends HTMLElement {
         }
         .row-actions { display: flex; gap: 8px; justify-content: flex-end; }
         #error { color: var(--error-color, #db4437); }
+        @media (max-width: 640px) {
+          table, thead, tbody, tr, td { display: block; width: 100%; }
+          thead { display: none; }
+          tbody tr {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border: 1px solid var(--divider-color, #eee);
+            border-radius: 8px;
+          }
+          td {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 6px 0;
+            border-bottom: none;
+          }
+          td::before {
+            content: attr(data-label);
+            flex-shrink: 0;
+            font-weight: 500;
+            color: var(--secondary-text-color, inherit);
+          }
+          td.row-actions {
+            justify-content: flex-end;
+            flex-wrap: wrap;
+          }
+          td.row-actions::before { content: none; }
+        }
         #form-container:empty { display: none; }
         .overlay {
           position: fixed;
@@ -132,7 +171,7 @@ class MealsAndGroceriesProductsView extends HTMLElement {
       <div class="toolbar">
         <input id="search" type="search" />
         <select id="store-filter"></select>
-        <button id="add-btn"></button>
+        <button id="add-btn" class="icon-only"></button>
       </div>
       <div id="error"></div>
       <div id="list"></div>
@@ -229,7 +268,7 @@ class MealsAndGroceriesProductsView extends HTMLElement {
       hass,
       "search_placeholder"
     );
-    this.shadowRoot.getElementById("add-btn").textContent = t(hass, "add_product");
+    setIconButton(this.shadowRoot.getElementById("add-btn"), hass, "add_product", "mdi:plus");
   }
 
   _storeTitle(subentryId) {
@@ -281,29 +320,41 @@ class MealsAndGroceriesProductsView extends HTMLElement {
           product.store_subentry_id,
           product.category_id
         );
+        const storeCategory = `${store} – ${category}`;
         const barcodeCount = `${product.barcodes.length} ${t(
           hass,
           "product_barcode_count"
         )}`;
+        const barcodeTooltip = product.barcodes.length
+          ? _escapeAttr(product.barcodes.join(", "))
+          : "";
         return `
           <tr>
-            <td>${_escape(product.name)}</td>
-            <td>${_escape(store)}</td>
-            <td>${_escape(category)}</td>
-            <td>${barcodeCount}</td>
+            <td data-label="${_escapeAttr(t(hass, "product_name"))}">${_escape(
+          product.name
+        )}</td>
+            <td data-label="${_escapeAttr(
+              t(hass, "product_store_category")
+            )}">${_escape(storeCategory)}</td>
+            <td data-label="${_escapeAttr(
+              t(hass, "product_barcodes")
+            )}" title="${barcodeTooltip}">${barcodeCount}</td>
             <td class="row-actions">
-              <button data-action="add-to-list" data-id="${product.id}">${t(
-          hass,
-          "add_to_list"
-        )}</button>
-              <button class="secondary" data-action="edit" data-id="${product.id}">${t(
-          hass,
-          "edit"
-        )}</button>
-              <button class="danger" data-action="delete" data-id="${product.id}">${t(
-          hass,
-          "delete"
-        )}</button>
+              <button class="icon-only" ${
+                iconButtonMarkup(hass, "add_to_list", "mdi:cart-plus").attrs
+              } data-action="add-to-list" data-id="${product.id}">${
+          iconButtonMarkup(hass, "add_to_list", "mdi:cart-plus").content
+        }</button>
+              <button class="secondary icon-only" ${
+                iconButtonMarkup(hass, "edit", "mdi:pencil").attrs
+              } data-action="edit" data-id="${product.id}">${
+          iconButtonMarkup(hass, "edit", "mdi:pencil").content
+        }</button>
+              <button class="danger icon-only" ${
+                iconButtonMarkup(hass, "delete", "mdi:delete-outline").attrs
+              } data-action="delete" data-id="${product.id}">${
+          iconButtonMarkup(hass, "delete", "mdi:delete-outline").content
+        }</button>
             </td>
           </tr>`;
       })
@@ -314,8 +365,7 @@ class MealsAndGroceriesProductsView extends HTMLElement {
         <thead>
           <tr>
             <th>${t(hass, "product_name")}</th>
-            <th>${t(hass, "product_store")}</th>
-            <th>${t(hass, "product_category")}</th>
+            <th>${t(hass, "product_store_category")}</th>
             <th>${t(hass, "product_barcodes")}</th>
             <th></th>
           </tr>
@@ -451,8 +501,12 @@ class MealsAndGroceriesProductsView extends HTMLElement {
           )}" />
         </div>
         <div class="form-actions">
-          <button class="secondary" id="f-cancel">${t(hass, "cancel")}</button>
-          <button id="f-save">${t(hass, "save")}</button>
+          <button class="secondary icon-only" id="f-cancel" ${
+            iconButtonMarkup(hass, "cancel", "mdi:close").attrs
+          }>${iconButtonMarkup(hass, "cancel", "mdi:close").content}</button>
+          <button class="icon-only" id="f-save" ${
+            iconButtonMarkup(hass, "save", "mdi:content-save").attrs
+          }>${iconButtonMarkup(hass, "save", "mdi:content-save").content}</button>
         </div>
       </div>
       </div>

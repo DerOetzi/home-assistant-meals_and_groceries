@@ -7,6 +7,7 @@ import {
   toggleProductTile,
 } from "../cards/product-tile.js";
 import { subscribeTodoItems } from "../cards/todo-subscribe.js";
+import { setIconButton } from "../cards/icon-button.js";
 
 // Daily-use shopping view for one store: only the items currently on the
 // list are shown — catalog products grouped by category (walking route),
@@ -110,6 +111,15 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
           background: var(--primary-color, #03a9f4);
           color: var(--text-primary-color, #fff);
         }
+        button.icon-only {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          flex-shrink: 0;
+        }
         .store-chips {
           display: flex;
           gap: 8px;
@@ -180,7 +190,7 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
       <div class="store-chips" id="store-chips"></div>
       <div class="add-row">
         <input id="add-input" type="text" />
-        <button id="add-btn"></button>
+        <button id="add-btn" class="icon-only"></button>
       </div>
       <div id="error"></div>
       <div id="content"></div>
@@ -246,9 +256,11 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
       hass,
       "shoppinglist_add_placeholder"
     );
-    this.shadowRoot.getElementById("add-btn").textContent = t(
+    setIconButton(
+      this.shadowRoot.getElementById("add-btn"),
       hass,
-      "shoppinglist_add_button"
+      "shoppinglist_add_button",
+      "mdi:plus"
     );
   }
 
