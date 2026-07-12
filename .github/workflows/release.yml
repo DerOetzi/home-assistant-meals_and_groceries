@@ -4,6 +4,9 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Prepare release
@@ -20,7 +23,8 @@ jobs:
 
       - name: Create release zip
         run: |
-          zip -r meals_and_groceries.zip custom_components/meals_and_groceries/
+          cd custom_components/meals_and_groceries
+          zip -r ../../meals_and_groceries.zip .
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
