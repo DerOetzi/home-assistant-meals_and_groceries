@@ -4,9 +4,9 @@ from datetime import date, datetime
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers import config_validation as cv, translation
+from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN, GLOBAL_DATA_KEY, WEEKDAY_IDS, WEEKDAY_TRANSLATION_CATEGORY
+from .const import DOMAIN, GLOBAL_DATA_KEY, WEEKDAY_IDS, WEEKDAY_LABELS
 from .models import Dish, MealPlanDay
 
 SET_DAY_MEAL_SCHEMA = vol.Schema(
@@ -19,19 +19,8 @@ SET_DAY_MEAL_SCHEMA = vol.Schema(
 
 
 async def async_get_weekday_labels(hass: HomeAssistant) -> dict[str, str]:
-    """Load the localized weekday display labels from the translation files."""
-    translations = await translation.async_get_translations(
-        hass,
-        hass.config.language,
-        WEEKDAY_TRANSLATION_CATEGORY,
-        integrations={DOMAIN},
-    )
-    prefix = f"component.{DOMAIN}.{WEEKDAY_TRANSLATION_CATEGORY}."
-    labels = {
-        key[len(prefix) :]: value
-        for key, value in translations.items()
-        if key.startswith(prefix)
-    }
+    """Return the localized weekday display labels."""
+    labels = WEEKDAY_LABELS.get(hass.config.language, WEEKDAY_LABELS["en"])
     return {day_id: labels.get(day_id, day_id.capitalize()) for day_id in WEEKDAY_IDS}
 
 
