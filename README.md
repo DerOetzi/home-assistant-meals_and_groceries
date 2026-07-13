@@ -1,5 +1,12 @@
 # Meals & Groceries
 
+[![Validate](https://github.com/DerOetzi/home-assistant-meals_and_groceries/actions/workflows/validate.yml/badge.svg)](https://github.com/DerOetzi/home-assistant-meals_and_groceries/actions/workflows/validate.yml)
+[![GitHub release](https://img.shields.io/github/v/release/DerOetzi/home-assistant-meals_and_groceries)](https://github.com/DerOetzi/home-assistant-meals_and_groceries/releases)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/DerOetzi?label=Sponsor)](https://github.com/sponsors/DerOetzi)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-ffdd00?logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/deroetzik)
+
 A Home Assistant custom integration for shopping-list and meal-planning management. Replaces a previous Node-RED- and Lovelace-dashboard-based setup with native `todo` entities, a proper data model (stores → categories/groups → products, dishes with ingredients), and a custom sidebar panel that serves as the sole daily shopping/planning interface — while still exposing plain entities for anyone who wants to build their own dashboard.
 
 ## Features
