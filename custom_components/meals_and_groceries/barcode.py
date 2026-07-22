@@ -43,6 +43,7 @@ async def async_handle_scan_barcode(hass: HomeAssistant, call: ServiceCall) -> N
         {
             "barcode": barcode,
             "product_id": product.id,
+            "product_name": product.name,
             "store_subentry_id": product.store_subentry_id,
         },
     )
