@@ -64,6 +64,16 @@
           "description": "Die ToDo-Entität der anzuzeigenden Einkaufsliste."
         }
       }
+    },
+    "select_panel_tab": {
+      "name": "Panel-Tab auswählen",
+      "description": "Wechselt den auf dem Panel angezeigten Alltags-Tab (Wochenplan oder Einkaufsliste), z.B. per Zonen-Automation.",
+      "fields": {
+        "tab": {
+          "name": "Tab",
+          "description": "Welcher Alltags-Tab angezeigt werden soll."
+        }
+      }
     }
   },
   "entity": {
@@ -82,6 +92,14 @@
       },
       "last_changed": {
         "name": "Letzte Änderung"
+      }
+    }
+  },
+  "selector": {
+    "panel_tab": {
+      "options": {
+        "mealplan": "Wochenplan",
+        "shoppinglist": "Einkaufsliste"
       }
     }
   }

@@ -13,10 +13,16 @@ PLATFORMS = ["todo", "sensor"]
 SERVICE_SCAN_BARCODE = "scan_barcode"
 SERVICE_SET_DAY_MEAL = "set_day_meal"
 SERVICE_SELECT_SHOPPING_LIST = "select_shopping_list"
+SERVICE_SELECT_PANEL_TAB = "select_panel_tab"
 
 EVENT_BARCODE_ADDED = f"{DOMAIN}_barcode_added"
 EVENT_BARCODE_UNKNOWN = f"{DOMAIN}_barcode_unknown"
 EVENT_SHOPPING_LIST_SELECTED = f"{DOMAIN}_shopping_list_selected"
+EVENT_PANEL_TAB_SELECTED = f"{DOMAIN}_panel_tab_selected"
+
+PANEL_TAB_MEALPLAN = "mealplan"
+PANEL_TAB_SHOPPINGLIST = "shoppinglist"
+PANEL_TABS = [PANEL_TAB_MEALPLAN, PANEL_TAB_SHOPPINGLIST]
 
 WEEKDAY_IDS = [
     "monday",

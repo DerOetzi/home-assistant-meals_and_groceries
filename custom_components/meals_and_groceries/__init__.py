@@ -16,10 +16,14 @@ from . import panel, websocket_api
 from .barcode import SCAN_BARCODE_SCHEMA, async_handle_scan_barcode
 from .const import (
     DOMAIN,
+    EVENT_PANEL_TAB_SELECTED,
     EVENT_SHOPPING_LIST_SELECTED,
     GLOBAL_DATA_KEY,
+    PANEL_TAB_SHOPPINGLIST,
+    PANEL_TABS,
     PLATFORMS,
     SERVICE_SCAN_BARCODE,
+    SERVICE_SELECT_PANEL_TAB,
     SERVICE_SELECT_SHOPPING_LIST,
     SERVICE_SET_DAY_MEAL,
     STORAGE_VERSION,
@@ -43,6 +47,7 @@ from .store import (
 _FRONTEND_REGISTERED_KEY = "_frontend_registered"
 
 SELECT_SHOPPING_LIST_SCHEMA = vol.Schema({vol.Required("entity_id"): cv.entity_id})
+SELECT_PANEL_TAB_SCHEMA = vol.Schema({vol.Required("tab"): vol.In(PANEL_TABS)})
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -72,6 +77,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def _handle_select_shopping_list(call: ServiceCall) -> None:
         _async_select_shopping_list(hass, call.data["entity_id"])
 
+    async def _handle_select_panel_tab(call: ServiceCall) -> None:
+        _async_select_panel_tab(hass, call.data["tab"])
+
     async def _handle_midnight(now: datetime) -> None:
         await async_handle_midnight_reset(hass, now)
 
@@ -86,6 +94,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         SERVICE_SELECT_SHOPPING_LIST,
         _handle_select_shopping_list,
         schema=SELECT_SHOPPING_LIST_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SELECT_PANEL_TAB,
+        _handle_select_panel_tab,
+        schema=SELECT_PANEL_TAB_SCHEMA,
     )
 
     midnight_unsub = async_track_time_change(
@@ -153,6 +167,15 @@ def _async_select_shopping_list(hass: HomeAssistant, entity_id: str) -> None:
         EVENT_SHOPPING_LIST_SELECTED,
         {"subentry_id": subentry_id, "entity_id": entity_id},
     )
+    # Picking a list to shop from implies wanting to see it.
+    _async_select_panel_tab(hass, PANEL_TAB_SHOPPINGLIST)
+
+
+def _async_select_panel_tab(hass: HomeAssistant, tab: str) -> None:
+    """Switch the daily tab (Wochenplan/Einkaufsliste) shown on the panel,
+    e.g. from a zone automation ("arriving home" -> mealplan)."""
+    hass.data[DOMAIN][GLOBAL_DATA_KEY]["selected_tab"] = tab
+    hass.bus.async_fire(EVENT_PANEL_TAB_SELECTED, {"tab": tab})
 
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -169,6 +192,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.services.async_remove(DOMAIN, SERVICE_SCAN_BARCODE)
         hass.services.async_remove(DOMAIN, SERVICE_SET_DAY_MEAL)
         hass.services.async_remove(DOMAIN, SERVICE_SELECT_SHOPPING_LIST)
+        hass.services.async_remove(DOMAIN, SERVICE_SELECT_PANEL_TAB)
         hass.data[DOMAIN].pop(GLOBAL_DATA_KEY, None)
         for subentry_id in list(entry.subentries):
             hass.data[DOMAIN].pop(subentry_id, None)

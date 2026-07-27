@@ -11,10 +11,12 @@ from .const import (
     DISH_KINDS,
     DOMAIN,
     EVENT_BARCODE_UNKNOWN,
+    EVENT_PANEL_TAB_SELECTED,
     EVENT_SHOPPING_LIST_SELECTED,
     GLOBAL_DATA_KEY,
     SUBENTRY_TYPE_SHOPPING_LIST,
 )
+from .entities import refresh_list_sensors
 from .mealplan import async_set_day_meal
 
 ERR_NOT_FOUND = "not_found"
@@ -52,6 +54,7 @@ def async_setup(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_mealplan_set_day)
     websocket_api.async_register_command(hass, ws_barcode_unknown_subscribe)
     websocket_api.async_register_command(hass, ws_selected_list_subscribe)
+    websocket_api.async_register_command(hass, ws_panel_tab_subscribe)
 
 
 def _global_data(hass: HomeAssistant) -> dict:
@@ -243,6 +246,7 @@ async def ws_products_add(hass: HomeAssistant, connection: websocket_api.ActiveC
         vol.Required("type"): "meals_and_groceries/products/update",
         vol.Required("product_id"): str,
         vol.Required("name"): str,
+        vol.Required("store_subentry_id"): str,
         vol.Optional("category_id"): vol.Any(str, None),
         vol.Optional("barcodes", default=list): [str],
         vol.Optional("group_ids", default=list): [str],
@@ -251,10 +255,18 @@ async def ws_products_add(hass: HomeAssistant, connection: websocket_api.ActiveC
 @websocket_api.async_response
 async def ws_products_update(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
     product_store = _global_data(hass)["products"]
+    old_product = product_store.get(msg["product_id"])
+    if old_product is None:
+        connection.send_error(msg["id"], ERR_NOT_FOUND, "Unknown product")
+        return
+    old_store_subentry_id = old_product.store_subentry_id
+    old_name = old_product.name
+
     try:
         product_store.update(
             msg["product_id"],
             name=msg["name"],
+            store_subentry_id=msg["store_subentry_id"],
             category_id=msg.get("category_id"),
             barcodes=msg["barcodes"],
             group_ids=msg["group_ids"],
@@ -263,6 +275,21 @@ async def ws_products_update(hass: HomeAssistant, connection: websocket_api.Acti
         connection.send_error(msg["id"], ERR_NOT_FOUND, "Unknown product")
         return
     await product_store.async_save()
+
+    # Moving a product to a different shopping list leaves any open entry
+    # behind on the old list, no longer linked to the (now moved) product —
+    # just drop it there instead of leaving an orphaned plain-text item.
+    if msg["store_subentry_id"] != old_store_subentry_id:
+        old_list_data = hass.data[DOMAIN].get(old_store_subentry_id)
+        if old_list_data is not None:
+            old_todo_store = old_list_data["todo_items"]
+            open_item = old_todo_store.find_needs_action_by_summary(old_name)
+            if open_item is not None:
+                old_todo_store.delete(open_item.uid)
+                await old_todo_store.async_save()
+                old_list_data["entity"].async_write_ha_state()
+                refresh_list_sensors(hass, old_store_subentry_id)
+
     connection.send_result(msg["id"])
 
 
@@ -649,4 +676,31 @@ def ws_selected_list_subscribe(hass: HomeAssistant, connection: websocket_api.Ac
     if selected:
         connection.send_message(
             websocket_api.event_message(msg["id"], {"subentry_id": selected})
+        )
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "meals_and_groceries/panel_tab/subscribe"}
+)
+@callback
+def ws_panel_tab_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
+    """Push daily-tab switches (select_panel_tab service) to panels."""
+
+    @callback
+    def _forward(event) -> None:
+        connection.send_message(
+            websocket_api.event_message(msg["id"], {"tab": event.data["tab"]})
+        )
+
+    connection.subscriptions[msg["id"]] = hass.bus.async_listen(
+        EVENT_PANEL_TAB_SELECTED, _forward
+    )
+    connection.send_result(msg["id"])
+
+    # Immediately push the current tab so a freshly opened panel starts on
+    # whatever the most recent automation/service call selected.
+    selected = _global_data(hass).get("selected_tab")
+    if selected:
+        connection.send_message(
+            websocket_api.event_message(msg["id"], {"tab": selected})
         )

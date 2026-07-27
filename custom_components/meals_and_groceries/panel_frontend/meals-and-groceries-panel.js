@@ -25,7 +25,12 @@ class MealsAndGroceriesPanel extends HTMLElement {
     this._narrow = false;
     this._built = false;
     this._barcodeSubscribed = false;
+    this._panelTabSubscribed = false;
     this._toastTimeout = null;
+    // Deep link parsed from the panel route, applied once the shell is built.
+    this._routePrefix = "/meals-and-groceries";
+    this._routeTab = "";
+    this._routeListEntityId = "";
   }
 
   connectedCallback() {
@@ -35,6 +40,8 @@ class MealsAndGroceriesPanel extends HTMLElement {
     if (!this._built) {
       this._build();
       this._built = true;
+      // A route set before the shell existed is applied now.
+      this._applyRoute();
     }
     this._updateHass();
   }
@@ -44,6 +51,7 @@ class MealsAndGroceriesPanel extends HTMLElement {
     this._hass = hass;
     this._updateHass();
     this._subscribeBarcodeUnknown();
+    this._subscribePanelTab();
     if (first) {
       this._reloadDynamicTabs();
       this._loadStores();
@@ -74,6 +82,108 @@ class MealsAndGroceriesPanel extends HTMLElement {
 
   get narrow() {
     return this._narrow;
+  }
+
+  // Home Assistant sets `route` for panel_custom panels and updates it on
+  // every in-app navigation. Supported deep links:
+  //   /meals-and-groceries/mealplan
+  //   /meals-and-groceries/shoppinglist
+  //   /meals-and-groceries/shoppinglist/todo.edeka   (preselects that list)
+  //   /meals-and-groceries/tab:<tab_id>
+  set route(route) {
+    if (route?.prefix) {
+      this._routePrefix = route.prefix;
+    }
+    const segments = String(route?.path || "")
+      .split("/")
+      .filter(Boolean);
+    if (!segments.length) {
+      // Bare panel path: canonicalize to the tab that is actually shown.
+      this._routeTab = "";
+      this._routeListEntityId = "";
+      this._applyRoute();
+      return;
+    }
+    const [tab, listEntityId = ""] = segments;
+    if (tab === this._routeTab && listEntityId === this._routeListEntityId) {
+      return;
+    }
+    this._routeTab = tab;
+    this._routeListEntityId = listEntityId;
+    this._applyRoute();
+  }
+
+  get route() {
+    return { path: `/${this._routeTab}` };
+  }
+
+  // Push the current tab into the address bar so in-panel navigation is
+  // linkable, bookmarkable and survives a reload. `location-changed` is the
+  // frontend's own convention for telling it the URL moved.
+  // `replace` rewrites the current entry instead of adding one — used when
+  // the URL is only being made canonical (bare panel path -> default tab,
+  // /shoppinglist -> /shoppinglist/<list>), not when the user navigated.
+  _pushRoute(tab, listEntityId = "", replace = false) {
+    if (tab === this._routeTab && listEntityId === this._routeListEntityId) {
+      return;
+    }
+    this._routeTab = tab;
+    this._routeListEntityId = listEntityId;
+    const path = [this._routePrefix, tab, listEntityId]
+      .filter(Boolean)
+      .join("/");
+    if (replace) {
+      history.replaceState(null, "", path);
+    } else {
+      history.pushState(null, "", path);
+    }
+    this.dispatchEvent(
+      new CustomEvent("location-changed", {
+        bubbles: true,
+        composed: true,
+        detail: { replace },
+      })
+    );
+  }
+
+  // The shopping list always carries its list in the URL, so /shoppinglist
+  // and /shoppinglist/todo.edeka never denote the same page.
+  _currentListSegment() {
+    if (this._activeTab !== "shoppinglist") {
+      return "";
+    }
+    return (
+      this.shadowRoot.querySelector('main > [data-view="shoppinglist"]')
+        ?.selectedTodoEntityId || ""
+    );
+  }
+
+  _applyRoute() {
+    const tab = this._routeTab;
+    if (!this._built) {
+      return;
+    }
+    if (!tab) {
+      // Bare panel path — make the default tab explicit in the address bar.
+      this._pushRoute(this._activeTab, this._currentListSegment(), true);
+      return;
+    }
+    const known =
+      DAILY_TABS.includes(tab) ||
+      CONFIG_TABS.includes(tab) ||
+      tab.startsWith("tab:");
+    if (!known) {
+      return;
+    }
+    this._configMode = CONFIG_TABS.includes(tab);
+    this._activeTab = tab;
+    this._renderNav();
+    this._updateActiveTab();
+    const view = this._activeView();
+    view?.refresh?.();
+    if (tab === "shoppinglist" && this._routeListEntityId) {
+      view?.selectList?.(this._routeListEntityId);
+    }
   }
 
   _build() {
@@ -194,9 +304,20 @@ class MealsAndGroceriesPanel extends HTMLElement {
       }
       this._activeTab = button.dataset.tab;
       this._updateActiveTab();
+      this._pushRoute(this._activeTab, this._currentListSegment());
       // Daily views depend on data edited on the config pages (ingredients,
       // groups, categories) — refresh on activation to pick up changes.
       this._activeView()?.refresh?.();
+    });
+    this.shadowRoot.addEventListener("mag-list-selected", (event) => {
+      if (this._activeTab !== "shoppinglist") {
+        return;
+      }
+      this._pushRoute(
+        "shoppinglist",
+        event.detail?.todoEntityId || "",
+        event.detail?.replace !== false
+      );
     });
     this._renderNav();
   }
@@ -210,6 +331,7 @@ class MealsAndGroceriesPanel extends HTMLElement {
     }
     this._renderNav();
     this._updateActiveTab();
+    this._pushRoute(this._activeTab);
     this._activeView()?.refresh?.();
   }
 
@@ -227,6 +349,10 @@ class MealsAndGroceriesPanel extends HTMLElement {
     this._syncDynamicViews();
     this._renderNav();
     this._updateActiveTab();
+    // A tab:<id> deep link only resolves once the dynamic tabs exist.
+    if (this._routeTab.startsWith("tab:")) {
+      this._applyRoute();
+    }
   }
 
   // One mag-group-tab-view instance per configured tab, keyed by
@@ -387,11 +513,37 @@ class MealsAndGroceriesPanel extends HTMLElement {
     );
   }
 
+  // Driven by the select_panel_tab service (e.g. a zone automation showing
+  // the shopping list on arrival, or the meal plan when arriving home).
+  _subscribePanelTab() {
+    if (this._panelTabSubscribed || !this._hass?.connection) {
+      return;
+    }
+    this._panelTabSubscribed = true;
+    this._hass.connection.subscribeMessage(
+      (message) => this._onPanelTabSelected(message.tab),
+      { type: "meals_and_groceries/panel_tab/subscribe" }
+    );
+  }
+
+  _onPanelTabSelected(tab) {
+    if (!DAILY_TABS.includes(tab)) {
+      return;
+    }
+    this._configMode = false;
+    this._activeTab = tab;
+    this._renderNav();
+    this._updateActiveTab();
+    this._pushRoute(tab);
+    this._activeView()?.refresh?.();
+  }
+
   _onUnknownBarcode(barcode) {
     this._configMode = true;
     this._activeTab = "products";
     this._renderNav();
     this._updateActiveTab();
+    this._pushRoute("products");
     const productsView = this.shadowRoot.querySelector("mag-products-view");
     productsView?.openWithBarcode(barcode);
     this._showToast(t(this._hass, "unknown_barcode_toast").replace("{barcode}", barcode));

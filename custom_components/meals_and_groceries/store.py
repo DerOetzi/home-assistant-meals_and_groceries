@@ -77,6 +77,7 @@ class ProductStore:
         product_id: str,
         *,
         name: str,
+        store_subentry_id: str,
         category_id: str | None,
         barcodes: list[str],
         group_ids: list[str],
@@ -85,7 +86,13 @@ class ProductStore:
         if product is None:
             raise KeyError(product_id)
         product.name = name
-        product.category_id = category_id
+        # Categories are store-bound — a category from the old store would be
+        # meaningless (or dangling) against a new one, so switching stores
+        # always clears it; the caller re-picks a category for the new store.
+        product.category_id = (
+            category_id if store_subentry_id == product.store_subentry_id else None
+        )
+        product.store_subentry_id = store_subentry_id
         product.barcodes = list(barcodes)
         product.group_ids = list(group_ids)
 

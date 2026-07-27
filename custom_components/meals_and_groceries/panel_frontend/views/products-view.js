@@ -462,7 +462,7 @@ class MealsAndGroceriesProductsView extends HTMLElement {
         </div>
         <div class="form-row">
           <label>${t(hass, "product_store")}</label>
-          <select id="f-store" ${isEdit ? "disabled" : ""}>
+          <select id="f-store">
             ${this._stores
               .map(
                 (store) =>
@@ -659,6 +659,7 @@ class MealsAndGroceriesProductsView extends HTMLElement {
         await callWS(hass, "meals_and_groceries/products/update", {
           product_id: this._editingProductId,
           name,
+          store_subentry_id: this._formStoreId,
           category_id: this._formCategoryId || null,
           barcodes: this._formBarcodes,
           group_ids: this._formGroupIds,

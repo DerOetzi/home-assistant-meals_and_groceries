@@ -26,6 +26,10 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
     this._unsub = null;
     this._error = null;
     this._selectSubscribed = false;
+    // Deep link (/meals-and-groceries/shoppinglist/todo.edeka) may arrive
+    // before the stores are loaded — remembered until _loadAll can map it.
+    this._pendingTodoEntityId = "";
+    this._ignoreNextSelectedReplay = false;
   }
 
   connectedCallback() {
@@ -73,6 +77,12 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
         if (!storeId || storeId === this._selectedStoreId) {
           return;
         }
+        // A deep link is an explicit request from this session — don't let
+        // the replayed server-side selection overwrite it.
+        if (this._ignoreNextSelectedReplay) {
+          this._ignoreNextSelectedReplay = false;
+          return;
+        }
         if (this._stores.length) {
           this._selectStore(storeId);
         } else {
@@ -88,6 +98,27 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
     if (this._hass) {
       this._loadAll();
     }
+  }
+
+  // Deep-link entry point: select a list by its todo entity id
+  // (e.g. "todo.edeka"). Applied immediately when the stores are known,
+  // otherwise picked up by _loadAll.
+  selectList(todoEntityId) {
+    if (!todoEntityId) {
+      return;
+    }
+    this._ignoreNextSelectedReplay = true;
+    const store = this._stores.find(
+      (s) => s.todo_entity_id === todoEntityId
+    );
+    if (store) {
+      this._pendingTodoEntityId = "";
+      if (store.subentry_id !== this._selectedStoreId) {
+        this._selectStore(store.subentry_id);
+      }
+      return;
+    }
+    this._pendingTodoEntityId = todoEntityId;
   }
 
   _buildShell() {
@@ -201,7 +232,8 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
       .addEventListener("click", (event) => {
         const chip = event.target.closest("[data-store-id]");
         if (chip && chip.dataset.storeId !== this._selectedStoreId) {
-          this._selectStore(chip.dataset.storeId);
+          // A user-initiated switch is a real navigation step.
+          this._selectStore(chip.dataset.storeId, false);
         }
       });
     const addInput = this.shadowRoot.getElementById("add-input");
@@ -240,6 +272,15 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
       this._error = err?.message || String(err);
     }
     this._applyLabels();
+    if (this._pendingTodoEntityId) {
+      const linked = this._stores.find(
+        (s) => s.todo_entity_id === this._pendingTodoEntityId
+      );
+      this._pendingTodoEntityId = "";
+      if (linked) {
+        this._selectedStoreId = linked.subentry_id;
+      }
+    }
     this._renderStoreChips();
     const storeId =
       this._selectedStoreId || this._stores[0]?.subentry_id || "";
@@ -287,9 +328,13 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
       .join("");
   }
 
-  async _selectStore(storeId) {
+  // `replaceUrl` distinguishes "this is where we already were" (deep link,
+  // default selection, server push — rewrite the address bar in place) from
+  // a user switching lists, which earns its own history entry.
+  async _selectStore(storeId, replaceUrl = true) {
     this._selectedStoreId = storeId;
     this._renderStoreChips();
+    this._notifyListSelected(replaceUrl);
     if (!this._categoriesByStore[storeId]) {
       try {
         const { categories } = await callWS(
@@ -304,6 +349,24 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
     }
     this._resubscribe();
     this._renderContent();
+  }
+
+  get selectedTodoEntityId() {
+    return this._store()?.todo_entity_id || "";
+  }
+
+  _notifyListSelected(replace) {
+    const todoEntityId = this.selectedTodoEntityId;
+    if (!todoEntityId) {
+      return;
+    }
+    this.dispatchEvent(
+      new CustomEvent("mag-list-selected", {
+        bubbles: true,
+        composed: true,
+        detail: { todoEntityId, replace },
+      })
+    );
   }
 
   _store() {

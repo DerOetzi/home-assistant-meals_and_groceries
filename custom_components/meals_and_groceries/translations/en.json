@@ -64,6 +64,16 @@
           "description": "The todo entity of the shopping list to show."
         }
       }
+    },
+    "select_panel_tab": {
+      "name": "Select panel tab",
+      "description": "Switches the daily tab shown on the panel (meal plan or shopping list), e.g. via a zone automation.",
+      "fields": {
+        "tab": {
+          "name": "Tab",
+          "description": "Which daily tab to show."
+        }
+      }
     }
   },
   "entity": {
@@ -82,6 +92,14 @@
       },
       "last_changed": {
         "name": "Last changed"
+      }
+    }
+  },
+  "selector": {
+    "panel_tab": {
+      "options": {
+        "mealplan": "Meal plan",
+        "shoppinglist": "Shopping list"
       }
     }
   }

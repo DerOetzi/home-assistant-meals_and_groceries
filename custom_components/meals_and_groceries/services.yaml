@@ -34,3 +34,14 @@ select_shopping_list:
           filter:
             domain: todo
             integration: meals_and_groceries
+
+select_panel_tab:
+  fields:
+    tab:
+      required: true
+      selector:
+        select:
+          options:
+            - mealplan
+            - shoppinglist
+          translation_key: panel_tab
