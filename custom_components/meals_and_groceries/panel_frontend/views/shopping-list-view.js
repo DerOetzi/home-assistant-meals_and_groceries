@@ -207,15 +207,6 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
           grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
           gap: 8px;
         }
-        .other-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 10px 12px;
-          border-bottom: 1px solid var(--divider-color, #eee);
-          cursor: pointer;
-        }
-        .other-item ha-icon { color: var(--secondary-text-color, inherit); }
         ${PRODUCT_TILE_CSS}
       </style>
       <div class="store-chips" id="store-chips"></div>
@@ -465,13 +456,14 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
     if (otherItems.length > 0) {
       sections.push(`
         <div class="category-heading">${t(hass, "shoppinglist_other_items")}</div>
-        <div>${otherItems
-          .map(
-            (item) => `
-            <div class="other-item" data-item-uid="${_escapeAttr(item.uid)}">
-              <ha-icon icon="mdi:checkbox-blank-outline"></ha-icon>
-              <span>${_escape(item.summary || "")}</span>
-            </div>`
+        <div class="tiles">${otherItems
+          .map((item) =>
+            renderProductTileHtml({
+              itemUid: item.uid,
+              name: item.summary || "",
+              subtitle: null,
+              isOn: true,
+            })
           )
           .join("")}</div>`);
     }
@@ -544,10 +536,6 @@ function _escape(value) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
-}
-
-function _escapeAttr(value) {
-  return _escape(value).replaceAll('"', "&quot;");
 }
 
 if (!customElements.get("mag-shopping-list-view")) {

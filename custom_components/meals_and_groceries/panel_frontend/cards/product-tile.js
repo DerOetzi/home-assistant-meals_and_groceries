@@ -38,9 +38,14 @@ export const PRODUCT_TILE_CSS = `
   .tile .check { flex: none; color: inherit; }
 `;
 
-export function renderProductTileHtml({ id, name, subtitle, isOn }) {
+// Pass `itemUid` instead of `id` for a todo item that matches no catalog
+// product (free text) — the tile then carries data-item-uid.
+export function renderProductTileHtml({ id, itemUid, name, subtitle, isOn }) {
+  const dataAttr = itemUid
+    ? `data-item-uid="${escapeHtml(itemUid)}"`
+    : `data-product-id="${escapeHtml(id)}"`;
   return `
-    <div class="tile ${isOn ? "on" : ""}" data-product-id="${escapeHtml(id)}">
+    <div class="tile ${isOn ? "on" : ""}" ${dataAttr}>
       <div class="row">
         <ha-icon
           class="icon"
