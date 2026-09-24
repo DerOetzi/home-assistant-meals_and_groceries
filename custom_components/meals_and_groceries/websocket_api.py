@@ -671,11 +671,14 @@ def ws_selected_list_subscribe(hass: HomeAssistant, connection: websocket_api.Ac
     connection.send_result(msg["id"])
 
     # Immediately push the current selection so a freshly opened panel starts
-    # on the list picked by the most recent automation/service call.
+    # on the list picked by the most recent automation/service call. Flagged
+    # as a replay so a panel opened via deep link can keep its own list.
     selected = _global_data(hass).get("selected_store_id")
     if selected:
         connection.send_message(
-            websocket_api.event_message(msg["id"], {"subentry_id": selected})
+            websocket_api.event_message(
+                msg["id"], {"subentry_id": selected, "replay": True}
+            )
         )
 
 
@@ -698,9 +701,10 @@ def ws_panel_tab_subscribe(hass: HomeAssistant, connection: websocket_api.Active
     connection.send_result(msg["id"])
 
     # Immediately push the current tab so a freshly opened panel starts on
-    # whatever the most recent automation/service call selected.
+    # whatever the most recent automation/service call selected. Flagged as a
+    # replay so a panel opened via deep link can keep its own tab.
     selected = _global_data(hass).get("selected_tab")
     if selected:
         connection.send_message(
-            websocket_api.event_message(msg["id"], {"tab": selected})
+            websocket_api.event_message(msg["id"], {"tab": selected, "replay": True})
         )

@@ -31,6 +31,10 @@ class MealsAndGroceriesPanel extends HTMLElement {
     this._routePrefix = "/meals-and-groceries";
     this._routeTab = "";
     this._routeListEntityId = "";
+    // Whether the panel was opened with an explicit tab in the URL (e.g. a
+    // dashboard link to /shoppinglist/todo.edeka). Decided by the first route
+    // HA hands us; later in-panel navigation does not change it.
+    this._openedViaDeepLink = undefined;
   }
 
   connectedCallback() {
@@ -97,6 +101,9 @@ class MealsAndGroceriesPanel extends HTMLElement {
     const segments = String(route?.path || "")
       .split("/")
       .filter(Boolean);
+    if (this._openedViaDeepLink === undefined) {
+      this._openedViaDeepLink = segments.length > 0;
+    }
     if (!segments.length) {
       // Bare panel path: canonicalize to the tab that is actually shown.
       this._routeTab = "";
@@ -521,13 +528,19 @@ class MealsAndGroceriesPanel extends HTMLElement {
     }
     this._panelTabSubscribed = true;
     this._hass.connection.subscribeMessage(
-      (message) => this._onPanelTabSelected(message.tab),
+      (message) => this._onPanelTabSelected(message.tab, message.replay),
       { type: "meals_and_groceries/panel_tab/subscribe" }
     );
   }
 
-  _onPanelTabSelected(tab) {
+  // The server replays the last selected tab right after subscribing. That
+  // replay only sets the starting tab of a bare panel open — a deep link is
+  // an explicit request and wins over whatever an automation picked earlier.
+  _onPanelTabSelected(tab, replay = false) {
     if (!DAILY_TABS.includes(tab)) {
+      return;
+    }
+    if (replay && this._openedViaDeepLink) {
       return;
     }
     this._configMode = false;

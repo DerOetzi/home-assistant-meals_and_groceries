@@ -29,7 +29,8 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
     // Deep link (/meals-and-groceries/shoppinglist/todo.edeka) may arrive
     // before the stores are loaded — remembered until _loadAll can map it.
     this._pendingTodoEntityId = "";
-    this._ignoreNextSelectedReplay = false;
+    // Set once a deep link picked the list; the server replay then yields.
+    this._deepLinked = false;
   }
 
   connectedCallback() {
@@ -78,9 +79,9 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
           return;
         }
         // A deep link is an explicit request from this session — don't let
-        // the replayed server-side selection overwrite it.
-        if (this._ignoreNextSelectedReplay) {
-          this._ignoreNextSelectedReplay = false;
+        // the replayed server-side selection overwrite it. Live pushes
+        // (automations) still apply.
+        if (message.replay && this._deepLinked) {
           return;
         }
         if (this._stores.length) {
@@ -107,7 +108,7 @@ class MealsAndGroceriesShoppingListView extends HTMLElement {
     if (!todoEntityId) {
       return;
     }
-    this._ignoreNextSelectedReplay = true;
+    this._deepLinked = true;
     const store = this._stores.find(
       (s) => s.todo_entity_id === todoEntityId
     );
