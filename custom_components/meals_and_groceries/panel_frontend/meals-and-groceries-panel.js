@@ -423,18 +423,21 @@ class MealsAndGroceriesPanel extends HTMLElement {
     if (!this._hass) {
       return;
     }
-    this.shadowRoot.getElementById("panel-title").textContent = t(
-      this._hass,
-      "panel_title"
-    );
+    // Runs on every hass update — only touch the DOM when something actually
+    // changed. Rewriting identical text triggers layout, and Chrome closes an
+    // open native <select> dropdown (e.g. in an edit dialog) on that.
+    _setText(this.shadowRoot.getElementById("panel-title"), t(this._hass, "panel_title"));
     this.shadowRoot.querySelectorAll("button.tab").forEach((button) => {
       if (!button.dataset.fixedLabel) {
-        button.textContent = t(this._hass, `tab_${button.dataset.tab}`);
+        _setLabel(button, t(this._hass, `tab_${button.dataset.tab}`));
       }
     });
     const toggle = this.shadowRoot.getElementById("config-toggle");
-    toggle.title = t(this._hass, "config_mode_button");
-    toggle.setAttribute("aria-label", t(this._hass, "config_mode_button"));
+    const toggleLabel = t(this._hass, "config_mode_button");
+    if (toggle.title !== toggleLabel) {
+      toggle.title = toggleLabel;
+      toggle.setAttribute("aria-label", toggleLabel);
+    }
     toggle.classList.toggle("active", this._configMode);
     this._updateShoppingBadge();
   }
@@ -466,7 +469,7 @@ class MealsAndGroceriesPanel extends HTMLElement {
         badge.className = "badge";
         button.appendChild(badge);
       }
-      badge.textContent = count;
+      _setText(badge, String(count));
     } else if (badge) {
       badge.remove();
     }
@@ -570,6 +573,25 @@ class MealsAndGroceriesPanel extends HTMLElement {
     this._toastTimeout = setTimeout(() => {
       toast.style.display = "none";
     }, 6000);
+  }
+}
+
+function _setText(el, text) {
+  if (el && el.textContent !== text) {
+    el.textContent = text;
+  }
+}
+
+// Tab button label = first text node; the shopping-list badge span sits
+// after it and must survive label updates.
+function _setLabel(button, text) {
+  const first = button.firstChild;
+  if (first?.nodeType === Node.TEXT_NODE) {
+    if (first.data !== text) {
+      first.data = text;
+    }
+  } else {
+    button.insertBefore(document.createTextNode(text), first);
   }
 }
 

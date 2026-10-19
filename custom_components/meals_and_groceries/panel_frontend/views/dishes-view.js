@@ -1,6 +1,7 @@
 import { t } from "../translations.js";
 import { callWS } from "../ha-ws.js";
 import { setIconButton, iconButtonMarkup } from "../cards/icon-button.js";
+import "../cards/search-picker.js";
 
 const KIND_IDS = ["dish", "restaurant", "away", "other"];
 
@@ -364,7 +365,7 @@ class MealsAndGroceriesDishesView extends HTMLElement {
           <div class="form-row">
             <label>${t(hass, "dish_ingredients")}</label>
             <div id="ingredient-chips" class="chips"></div>
-            <select id="f-ingredient-add"></select>
+            <mag-search-picker id="f-ingredient-add"></mag-search-picker>
           </div>
           <div class="form-actions">
             <button class="secondary icon-only" id="f-cancel" ${
@@ -395,8 +396,8 @@ class MealsAndGroceriesDishesView extends HTMLElement {
     this._renderIngredientChips();
     container
       .querySelector("#f-ingredient-add")
-      .addEventListener("change", (event) => {
-        const productId = event.target.value;
+      .addEventListener("pick", (event) => {
+        const productId = event.detail.id;
         if (productId && !this._formIngredients.includes(productId)) {
           this._formIngredients.push(productId);
           this._renderIngredientChips();
@@ -453,26 +454,14 @@ class MealsAndGroceriesDishesView extends HTMLElement {
       }
       byStore.get(product.store_subentry_id).push(product);
     }
-    const groupsHtml = [...byStore.entries()]
-      .map(([subentryId, products]) => {
-        const title =
-          this._stores.find((s) => s.subentry_id === subentryId)?.title || "?";
-        const options = products
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map(
-            (product) =>
-              `<option value="${product.id}">${_escape(product.name)}</option>`
-          )
-          .join("");
-        return `<optgroup label="${_escapeAttr(title)}">${options}</optgroup>`;
-      })
-      .join("");
-    selectEl.innerHTML = `
-      <option value="">${t(hass, "add_ingredient")}</option>
-      ${groupsHtml}
-    `;
-    selectEl.value = "";
-    selectEl.disabled = byStore.size === 0;
+    selectEl.placeholder = t(hass, "add_ingredient");
+    selectEl.items = [...byStore.entries()].flatMap(([subentryId, products]) => {
+      const title =
+        this._stores.find((s) => s.subentry_id === subentryId)?.title || "?";
+      return products
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((product) => ({ id: product.id, label: product.name, group: title }));
+    });
   }
 
   async _save() {

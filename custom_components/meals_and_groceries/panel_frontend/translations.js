@@ -82,6 +82,9 @@ export const TRANSLATIONS = {
     product_groups: "Groups",
     add_group: "Add group…",
     add_group_button: "Add",
+    product_dishes: "Dishes",
+    product_tabs: "Extra tabs",
+    add_dish_link: "Add to dish…",
     confirm_delete_group:
       "Delete this group? Product assignments to it are removed as well.",
     group_name_placeholder: "New group name",
@@ -176,6 +179,9 @@ export const TRANSLATIONS = {
     product_groups: "Gruppen",
     add_group: "Gruppe hinzufügen…",
     add_group_button: "Hinzufügen",
+    product_dishes: "Gerichte",
+    product_tabs: "Zusätzliche Tabs",
+    add_dish_link: "Zu Gericht hinzufügen…",
     confirm_delete_group:
       "Diese Gruppe löschen? Produkt-Zuordnungen zu ihr werden ebenfalls entfernt.",
     group_name_placeholder: "Name der neuen Gruppe",

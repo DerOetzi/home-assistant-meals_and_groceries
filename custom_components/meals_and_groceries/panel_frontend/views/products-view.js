@@ -1,6 +1,7 @@
 import { t } from "../translations.js";
 import { callWS } from "../ha-ws.js";
 import { setIconButton, iconButtonMarkup } from "../cards/icon-button.js";
+import "../cards/search-picker.js";
 
 class MealsAndGroceriesProductsView extends HTMLElement {
   constructor() {
@@ -20,6 +21,8 @@ class MealsAndGroceriesProductsView extends HTMLElement {
     this._groups = [];
     this._tabs = [];
     this._formGroupIds = [];
+    this._dishes = [];
+    this._formDishIds = [];
   }
 
   connectedCallback() {
@@ -225,13 +228,7 @@ class MealsAndGroceriesProductsView extends HTMLElement {
       }
       this._categoriesByStore = categoriesByStore;
 
-      const [{ groups }, { tabs }] = await Promise.all([
-        callWS(this._hass, "meals_and_groceries/groups/list"),
-        callWS(this._hass, "meals_and_groceries/tabs/list"),
-      ]);
-      this._groups = groups;
-      this._tabs = [...tabs].sort((a, b) => a.sort_index - b.sort_index);
-
+      await this._loadLinks();
       await this._loadProducts();
     } catch (err) {
       this._error = err?.message || String(err);
@@ -254,6 +251,36 @@ class MealsAndGroceriesProductsView extends HTMLElement {
         )
         .join("")}
     `;
+  }
+
+  /** Groups, tabs and dishes — everything that references products. */
+  async _loadLinks() {
+    const [{ groups }, { tabs }, { dishes }] = await Promise.all([
+      callWS(this._hass, "meals_and_groceries/groups/list"),
+      callWS(this._hass, "meals_and_groceries/tabs/list"),
+      callWS(this._hass, "meals_and_groceries/dishes/list"),
+    ]);
+    this._groups = groups;
+    this._tabs = [...tabs].sort((a, b) => a.sort_index - b.sort_index);
+    this._dishes = [...dishes].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  _dishesUsing(productId) {
+    return this._dishes.filter((dish) => (dish.ingredients || []).includes(productId));
+  }
+
+  /** Extra tabs showing the product, each with the groups that put it there. */
+  _tabsShowing(product) {
+    const groupIds = product.group_ids || [];
+    return this._tabs
+      .map((tab) => ({
+        tab,
+        groups: (tab.group_ids || [])
+          .filter((groupId) => groupIds.includes(groupId))
+          .map((groupId) => this._groups.find((g) => g.id === groupId))
+          .filter(Boolean),
+      }))
+      .filter((entry) => entry.groups.length);
   }
 
   async _loadProducts() {
@@ -328,6 +355,14 @@ class MealsAndGroceriesProductsView extends HTMLElement {
         const barcodeTooltip = product.barcodes.length
           ? _escapeAttr(product.barcodes.join(", "))
           : "";
+        const dishes = this._dishesUsing(product.id);
+        const dishTooltip = _escapeAttr(dishes.map((d) => d.name).join(", "));
+        const tabs = this._tabsShowing(product);
+        const tabTooltip = _escapeAttr(
+          tabs
+            .map(({ tab, groups }) => `${tab.name}: ${groups.map((g) => g.name).join(", ")}`)
+            .join(" | ")
+        );
         return `
           <tr>
             <td data-label="${_escapeAttr(t(hass, "product_name"))}">${_escape(
@@ -339,6 +374,12 @@ class MealsAndGroceriesProductsView extends HTMLElement {
             <td data-label="${_escapeAttr(
               t(hass, "product_barcodes")
             )}" title="${barcodeTooltip}">${barcodeCount}</td>
+            <td data-label="${_escapeAttr(
+              t(hass, "product_dishes")
+            )}" title="${dishTooltip}">${dishes.length}</td>
+            <td data-label="${_escapeAttr(
+              t(hass, "product_tabs")
+            )}" title="${tabTooltip}">${tabs.length}</td>
             <td class="row-actions">
               <button class="icon-only" ${
                 iconButtonMarkup(hass, "add_to_list", "mdi:cart-plus").attrs
@@ -367,6 +408,8 @@ class MealsAndGroceriesProductsView extends HTMLElement {
             <th>${t(hass, "product_name")}</th>
             <th>${t(hass, "product_store_category")}</th>
             <th>${t(hass, "product_barcodes")}</th>
+            <th>${t(hass, "product_dishes")}</th>
+            <th>${t(hass, "product_tabs")}</th>
             <th></th>
           </tr>
         </thead>
@@ -411,15 +454,13 @@ class MealsAndGroceriesProductsView extends HTMLElement {
     // before showing the form.
     await this._refreshCategoriesForStore(this._formStoreId);
     try {
-      const [{ groups }, { tabs }] = await Promise.all([
-        callWS(this._hass, "meals_and_groceries/groups/list"),
-        callWS(this._hass, "meals_and_groceries/tabs/list"),
-      ]);
-      this._groups = groups;
-      this._tabs = [...tabs].sort((a, b) => a.sort_index - b.sort_index);
+      await this._loadLinks();
     } catch (err) {
       this._error = err?.message || String(err);
     }
+    this._formDishIds = productId
+      ? this._dishesUsing(productId).map((d) => d.id)
+      : [];
     this._renderForm();
   }
 
@@ -490,7 +531,12 @@ class MealsAndGroceriesProductsView extends HTMLElement {
         <div class="form-row">
           <label>${t(hass, "product_groups")}</label>
           <div id="group-chips" class="chips"></div>
-          <select id="f-group-add"></select>
+          <mag-search-picker id="f-group-add"></mag-search-picker>
+        </div>
+        <div class="form-row">
+          <label>${t(hass, "product_dishes")}</label>
+          <div id="dish-chips" class="chips"></div>
+          <mag-search-picker id="f-dish-add"></mag-search-picker>
         </div>
         <div class="form-row">
           <label>${t(hass, "product_barcodes")}</label>
@@ -514,9 +560,27 @@ class MealsAndGroceriesProductsView extends HTMLElement {
 
     this._renderChips();
     this._renderGroupChips();
+    this._renderDishChips();
 
-    container.querySelector("#f-group-add").addEventListener("change", (event) => {
-      const groupId = event.target.value;
+    container.querySelector("#f-dish-add").addEventListener("pick", (event) => {
+      const dishId = event.detail.id;
+      if (dishId && !this._formDishIds.includes(dishId)) {
+        this._formDishIds.push(dishId);
+        this._renderDishChips();
+      }
+    });
+    container.querySelector("#dish-chips").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-remove-dish]");
+      if (!button) {
+        return;
+      }
+      this._formDishIds = this._formDishIds.filter(
+        (id) => id !== button.dataset.removeDish
+      );
+      this._renderDishChips();
+    });
+    container.querySelector("#f-group-add").addEventListener("pick", (event) => {
+      const groupId = event.detail.id;
       if (groupId && !this._formGroupIds.includes(groupId)) {
         this._formGroupIds.push(groupId);
         this._renderGroupChips();
@@ -617,29 +681,64 @@ class MealsAndGroceriesProductsView extends HTMLElement {
       .join("");
 
     // Groups belong to a tab — offer them grouped by tab, in tab order.
-    let availableCount = 0;
-    const optgroups = this._tabs
-      .map((tab) => {
-        const options = (tab.group_ids || [])
-          .map((groupId) => this._groups.find((g) => g.id === groupId))
-          .filter(
-            (group) => group && !this._formGroupIds.includes(group.id)
-          )
-          .map(
-            (group) => `<option value="${group.id}">${_escape(group.name)}</option>`
-          );
-        availableCount += options.length;
-        return options.length
-          ? `<optgroup label="${_escapeAttr(tab.name)}">${options.join("")}</optgroup>`
-          : "";
+    selectEl.placeholder = t(hass, "add_group");
+    selectEl.items = this._tabs.flatMap((tab) =>
+      (tab.group_ids || [])
+        .map((groupId) => this._groups.find((g) => g.id === groupId))
+        .filter((group) => group && !this._formGroupIds.includes(group.id))
+        .map((group) => ({ id: group.id, label: group.name, group: tab.name }))
+    );
+  }
+
+  _renderDishChips() {
+    const hass = this._hass;
+    const chipsEl = this.shadowRoot.getElementById("dish-chips");
+    const selectEl = this.shadowRoot.getElementById("f-dish-add");
+    if (!chipsEl || !selectEl) {
+      return;
+    }
+    chipsEl.innerHTML = this._formDishIds
+      .map((dishId) => {
+        const name = this._dishes.find((d) => d.id === dishId)?.name || "?";
+        return `
+        <span class="chip">
+          ${_escape(name)}
+          <button data-remove-dish="${_escapeAttr(dishId)}" title="${t(
+          hass,
+          "delete"
+        )}">×</button>
+        </span>`;
       })
       .join("");
-    selectEl.innerHTML = `
-      <option value="">${t(hass, "add_group")}</option>
-      ${optgroups}
-    `;
-    selectEl.value = "";
-    selectEl.disabled = availableCount === 0;
+
+    selectEl.placeholder = t(hass, "add_dish_link");
+    selectEl.items = this._dishes
+      .filter((dish) => !this._formDishIds.includes(dish.id))
+      .map((dish) => ({ id: dish.id, label: dish.name }));
+  }
+
+  /**
+   * Dish links live on the dishes (ingredients), not on the product — apply
+   * the form's dish selection by updating every dish whose membership changed.
+   */
+  async _saveDishLinks(productId) {
+    for (const dish of this._dishes) {
+      const ingredients = dish.ingredients || [];
+      const linked = ingredients.includes(productId);
+      const wanted = this._formDishIds.includes(dish.id);
+      if (linked === wanted) {
+        continue;
+      }
+      await callWS(this._hass, "meals_and_groceries/dishes/update", {
+        dish_id: dish.id,
+        name: dish.name,
+        kind: dish.kind,
+        notes: dish.notes ?? null,
+        ingredients: wanted
+          ? [...ingredients, productId]
+          : ingredients.filter((id) => id !== productId),
+      });
+    }
   }
 
   async _save() {
@@ -655,7 +754,8 @@ class MealsAndGroceriesProductsView extends HTMLElement {
     }
 
     try {
-      if (this._editingProductId) {
+      let productId = this._editingProductId;
+      if (productId) {
         await callWS(hass, "meals_and_groceries/products/update", {
           product_id: this._editingProductId,
           name,
@@ -665,15 +765,18 @@ class MealsAndGroceriesProductsView extends HTMLElement {
           group_ids: this._formGroupIds,
         });
       } else {
-        await callWS(hass, "meals_and_groceries/products/add", {
+        const { product } = await callWS(hass, "meals_and_groceries/products/add", {
           name,
           store_subentry_id: this._formStoreId,
           category_id: this._formCategoryId || null,
           barcodes: this._formBarcodes,
           group_ids: this._formGroupIds,
         });
+        productId = product.id;
       }
+      await this._saveDishLinks(productId);
       this._closeForm();
+      await this._loadLinks();
       await this._loadProducts();
     } catch (err) {
       window.alert(`${t(hass, "error_prefix")}: ${err?.message || err}`);
